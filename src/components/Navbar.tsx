@@ -12,7 +12,7 @@ import { BookOpen, User, LogOut, Settings, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 
 const Navbar = () => {
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, isAdmin, signOut } = useAuth();
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
@@ -63,7 +63,7 @@ const Navbar = () => {
                   </div>
                   <DropdownMenuSeparator />
                   
-                  {profile?.is_admin && (
+                  {isAdmin && (
                     <>
                       <DropdownMenuItem onClick={() => navigate('/admin')}>
                         <Shield className="w-4 h-4 mr-2" />

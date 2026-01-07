@@ -9,15 +9,15 @@ import AdminLectures from '@/components/admin/AdminLectures';
 import AdminStats from '@/components/admin/AdminStats';
 
 const Admin = () => {
-  const { user, profile, loading } = useAuth();
+  const { user, isAdmin, loading } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('lectures');
 
   useEffect(() => {
-    if (!loading && (!user || !profile?.is_admin)) {
+    if (!loading && (!user || !isAdmin)) {
       navigate('/');
     }
-  }, [user, profile, loading, navigate]);
+  }, [user, isAdmin, loading, navigate]);
 
   if (loading) {
     return (
@@ -27,7 +27,7 @@ const Admin = () => {
     );
   }
 
-  if (!profile?.is_admin) {
+  if (!isAdmin) {
     return null;
   }
 
