@@ -6,13 +6,13 @@ interface Profile {
   id: string;
   email: string;
   full_name: string | null;
-  is_admin: boolean;
 }
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   profile: Profile | null;
+  isAdmin: boolean;
   loading: boolean;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
@@ -25,18 +25,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = async (userId: string) => {
     const { data, error } = await supabase
       .from('profiles')
-      .select('*')
+      .select('id, email, full_name')
       .eq('id', userId)
       .single();
 
     if (!error && data) {
       setProfile(data as Profile);
     }
+  };
+
+  const fetchAdminRole = async (userId: string) => {
+    const { data } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', userId)
+      .eq('role', 'admin')
+      .maybeSingle();
+
+    setIsAdmin(!!data);
   };
 
   useEffect(() => {
@@ -47,12 +59,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(session?.user ?? null);
 
         if (session?.user) {
-          // Defer profile fetch to avoid deadlock
+          // Defer profile and role fetch to avoid deadlock
           setTimeout(() => {
             fetchProfile(session.user.id);
+            fetchAdminRole(session.user.id);
           }, 0);
         } else {
           setProfile(null);
+          setIsAdmin(false);
         }
 
         setLoading(false);
@@ -66,6 +80,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (session?.user) {
         fetchProfile(session.user.id);
+        fetchAdminRole(session.user.id);
       }
 
       setLoading(false);
@@ -105,10 +120,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
     setSession(null);
     setProfile(null);
+    setIsAdmin(false);
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, profile, loading, signUp, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, session, profile, isAdmin, loading, signUp, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );
