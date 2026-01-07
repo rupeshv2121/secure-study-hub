@@ -195,11 +195,64 @@
     user-drag: none;
   }
 
-  /* Security: Prevent printing */
+  /* Security: Secure viewer specific styles */
+  .secure-viewer {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-user-drag: none;
+  }
+
+  .secure-viewer * {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    -webkit-user-drag: none;
+  }
+
+  .secure-viewer img,
+  .secure-viewer canvas {
+    pointer-events: none;
+    -webkit-user-drag: none;
+    -khtml-user-drag: none;
+    -moz-user-drag: none;
+    -o-user-drag: none;
+    user-drag: none;
+  }
+
+  .secure-canvas {
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Watermark protection */
+  .watermark-overlay {
+    mix-blend-mode: multiply;
+  }
+
+  /* Security: Prevent printing - hide all content */
   @media print {
-    .no-print {
+    .no-print,
+    .secure-viewer {
       display: none !important;
+      visibility: hidden !important;
     }
+
+    body::before {
+      content: "Printing is disabled for this content.";
+      display: block;
+      font-size: 24px;
+      text-align: center;
+      padding: 100px;
+    }
+  }
+
+  /* Block save-as context menu on images */
+  .secure-viewer img {
+    -webkit-touch-callout: none;
   }
 
   /* Animation utilities */
