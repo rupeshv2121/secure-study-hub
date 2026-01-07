@@ -1,9 +1,9 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Shield, AlertTriangle } from 'lucide-react';
-import { toast } from 'sonner';
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Shield, AlertTriangle, Lock } from 'lucide-react';
+import { useSecurityProtection } from '@/hooks/useSecurityProtection';
 
 interface SecureViewerProps {
   lectureId: string;
@@ -11,22 +11,41 @@ interface SecureViewerProps {
 }
 
 const SecureViewer = ({ lectureId, slides }: SecureViewerProps) => {
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const [currentSlide, setCurrentSlide] = useState(0);
   const [slideUrls, setSlideUrls] = useState<Record<number, string>>({});
   const [zoom, setZoom] = useState(1);
   const [isBlurred, setIsBlurred] = useState(false);
   const [warningMessage, setWarningMessage] = useState('');
+  const [warningType, setWarningType] = useState<'warning' | 'error'>('warning');
   const viewerRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const imageCache = useRef<Map<number, HTMLImageElement>>(new Map());
 
   // Sort slides by slide_number
-  const sortedSlides = [...slides].sort((a, b) => a.slide_number - b.slide_number);
+  const sortedSlides = useMemo(
+    () => [...slides].sort((a, b) => a.slide_number - b.slide_number),
+    [slides]
+  );
 
-  // Generate signed URLs for slides
+  // Security warning handler
+  const showSecurityWarning = useCallback((message: string, type: 'warning' | 'error' = 'warning') => {
+    setWarningMessage(message);
+    setWarningType(type);
+    setTimeout(() => setWarningMessage(''), 3000);
+  }, []);
+
+  // Use security protection hook
+  useSecurityProtection({
+    onSecurityWarning: (msg) => showSecurityWarning(msg, 'error'),
+    onBlurChange: setIsBlurred,
+  });
+
+  // Generate signed URLs for slides with short expiry
   const getSignedUrl = useCallback(async (storagePath: string, slideIndex: number) => {
     const { data, error } = await supabase.storage
       .from('lecture-slides')
-      .createSignedUrl(storagePath, 60); // 60 second expiry
+      .createSignedUrl(storagePath, 30); // 30 second expiry for security
 
     if (error) {
       console.error('Error getting signed URL:', error);
@@ -36,6 +55,70 @@ const SecureViewer = ({ lectureId, slides }: SecureViewerProps) => {
     setSlideUrls((prev) => ({ ...prev, [slideIndex]: data.signedUrl }));
     return data.signedUrl;
   }, []);
+
+  // Render slide to canvas (prevents direct image access)
+  const renderSlideToCanvas = useCallback(
+    (imageUrl: string, slideIndex: number) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      // Check if image is already cached
+      let img = imageCache.current.get(slideIndex);
+      
+      if (!img) {
+        img = new Image();
+        img.crossOrigin = 'anonymous';
+        imageCache.current.set(slideIndex, img);
+      }
+
+      img.onload = () => {
+        // Set canvas size to match image aspect ratio
+        const containerWidth = canvas.parentElement?.clientWidth || 800;
+        const containerHeight = canvas.parentElement?.clientHeight || 450;
+        
+        const imgRatio = img!.width / img!.height;
+        const containerRatio = containerWidth / containerHeight;
+
+        let drawWidth, drawHeight;
+        if (imgRatio > containerRatio) {
+          drawWidth = containerWidth;
+          drawHeight = containerWidth / imgRatio;
+        } else {
+          drawHeight = containerHeight;
+          drawWidth = containerHeight * imgRatio;
+        }
+
+        canvas.width = drawWidth;
+        canvas.height = drawHeight;
+
+        // Clear and draw
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img!, 0, 0, drawWidth, drawHeight);
+
+        // Add watermark directly on canvas
+        const watermarkText = `${user?.email || 'Protected'} • ${new Date().toISOString()}`;
+        ctx.save();
+        ctx.globalAlpha = 0.06;
+        ctx.font = '14px monospace';
+        ctx.fillStyle = '#000000';
+        ctx.rotate(-15 * Math.PI / 180);
+
+        // Draw watermark pattern
+        for (let y = -200; y < canvas.height + 200; y += 80) {
+          for (let x = -200; x < canvas.width + 400; x += 350) {
+            ctx.fillText(watermarkText, x, y);
+          }
+        }
+        ctx.restore();
+      };
+
+      img.src = imageUrl;
+    },
+    [user?.email]
+  );
 
   // Preload current and adjacent slides
   useEffect(() => {
@@ -54,21 +137,40 @@ const SecureViewer = ({ lectureId, slides }: SecureViewerProps) => {
     loadSlides();
   }, [currentSlide, sortedSlides, slideUrls, getSignedUrl]);
 
-  // Block keyboard shortcuts
+  // Render current slide to canvas when URL is available
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Block Ctrl+S, Ctrl+P, Ctrl+C, Ctrl+U, PrintScreen
-      if (
-        (e.ctrlKey && ['s', 'p', 'c', 'u'].includes(e.key.toLowerCase())) ||
-        e.key === 'PrintScreen' ||
-        (e.ctrlKey && e.shiftKey && ['i', 'j', 'c'].includes(e.key.toLowerCase()))
-      ) {
-        e.preventDefault();
-        showSecurityWarning('This action is disabled for content protection.');
-        return false;
-      }
+    if (slideUrls[currentSlide]) {
+      renderSlideToCanvas(slideUrls[currentSlide], currentSlide);
+    }
+  }, [currentSlide, slideUrls, renderSlideToCanvas]);
 
-      // Navigation with arrow keys
+  // Refresh signed URLs periodically (every 25 seconds to avoid expiry)
+  useEffect(() => {
+    const refreshInterval = setInterval(() => {
+      if (sortedSlides[currentSlide]) {
+        getSignedUrl(sortedSlides[currentSlide].storage_path, currentSlide);
+      }
+    }, 25000);
+
+    return () => clearInterval(refreshInterval);
+  }, [currentSlide, sortedSlides, getSignedUrl]);
+
+  // Navigation handlers
+  const goToNextSlide = useCallback(() => {
+    if (currentSlide < sortedSlides.length - 1) {
+      setCurrentSlide((prev) => prev + 1);
+    }
+  }, [currentSlide, sortedSlides.length]);
+
+  const goToPrevSlide = useCallback(() => {
+    if (currentSlide > 0) {
+      setCurrentSlide((prev) => prev - 1);
+    }
+  }, [currentSlide]);
+
+  // Keyboard navigation (only for arrow keys, security handled by hook)
+  useEffect(() => {
+    const handleNavigation = (e: KeyboardEvent) => {
       if (e.key === 'ArrowLeft') {
         goToPrevSlide();
       } else if (e.key === 'ArrowRight') {
@@ -76,77 +178,18 @@ const SecureViewer = ({ lectureId, slides }: SecureViewerProps) => {
       }
     };
 
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [currentSlide, sortedSlides.length]);
-
-  // Detect visibility changes (tab switch, minimize)
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        setIsBlurred(true);
-        showSecurityWarning('Content hidden. Return to view.');
-      } else {
-        setTimeout(() => setIsBlurred(false), 500);
-      }
-    };
-
-    const handleBlur = () => {
-      setIsBlurred(true);
-      showSecurityWarning('Content hidden. Click here to view.');
-    };
-
-    const handleFocus = () => {
-      setTimeout(() => setIsBlurred(false), 300);
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('blur', handleBlur);
-    window.addEventListener('focus', handleFocus);
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('blur', handleBlur);
-      window.removeEventListener('focus', handleFocus);
-    };
-  }, []);
-
-  // Block right-click
-  useEffect(() => {
-    const handleContextMenu = (e: MouseEvent) => {
-      e.preventDefault();
-      showSecurityWarning('Right-click is disabled for content protection.');
-      return false;
-    };
-
-    const viewer = viewerRef.current;
-    if (viewer) {
-      viewer.addEventListener('contextmenu', handleContextMenu);
-      return () => viewer.removeEventListener('contextmenu', handleContextMenu);
-    }
-  }, []);
-
-  const showSecurityWarning = (message: string) => {
-    setWarningMessage(message);
-    setTimeout(() => setWarningMessage(''), 3000);
-  };
-
-  const goToNextSlide = () => {
-    if (currentSlide < sortedSlides.length - 1) {
-      setCurrentSlide(currentSlide + 1);
-    }
-  };
-
-  const goToPrevSlide = () => {
-    if (currentSlide > 0) {
-      setCurrentSlide(currentSlide - 1);
-    }
-  };
+    document.addEventListener('keydown', handleNavigation);
+    return () => document.removeEventListener('keydown', handleNavigation);
+  }, [goToNextSlide, goToPrevSlide]);
 
   const zoomIn = () => setZoom(Math.min(zoom + 0.25, 3));
   const zoomOut = () => setZoom(Math.max(zoom - 0.25, 0.5));
 
-  const watermarkText = `${user?.email || 'Protected'} • ${new Date().toLocaleString()}`;
+  // Dynamic watermark text
+  const watermarkText = useMemo(
+    () => `${user?.email || 'Protected'} • ${new Date().toLocaleString()}`,
+    [user?.email]
+  );
 
   if (sortedSlides.length === 0) {
     return (
@@ -159,13 +202,21 @@ const SecureViewer = ({ lectureId, slides }: SecureViewerProps) => {
   return (
     <div
       ref={viewerRef}
-      className="relative bg-card rounded-xl border border-border shadow-medium overflow-hidden no-select no-drag"
+      className="relative bg-card rounded-xl border border-border shadow-medium overflow-hidden secure-viewer"
       onDragStart={(e) => e.preventDefault()}
+      onDrop={(e) => e.preventDefault()}
+      onCopy={(e) => e.preventDefault()}
     >
       {/* Security Warning Overlay */}
       {warningMessage && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 animate-fade-in">
-          <div className="flex items-center gap-2 px-4 py-2 bg-destructive text-destructive-foreground rounded-lg shadow-lg">
+          <div
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg shadow-lg ${
+              warningType === 'error'
+                ? 'bg-destructive text-destructive-foreground'
+                : 'bg-yellow-500 text-white'
+            }`}
+          >
             <AlertTriangle className="w-4 h-4" />
             <span className="text-sm font-medium">{warningMessage}</span>
           </div>
@@ -177,6 +228,7 @@ const SecureViewer = ({ lectureId, slides }: SecureViewerProps) => {
         <div className="flex items-center gap-2">
           <Shield className="w-4 h-4 text-primary" />
           <span className="text-sm text-muted-foreground">Protected Content</span>
+          <Lock className="w-3 h-3 text-muted-foreground" />
         </div>
 
         <div className="flex items-center gap-2">
@@ -196,38 +248,40 @@ const SecureViewer = ({ lectureId, slides }: SecureViewerProps) => {
         </div>
       </div>
 
-      {/* Slide Display */}
+      {/* Slide Display - Using Canvas for security */}
       <div
         className={`relative aspect-[16/9] bg-background overflow-hidden transition-all duration-300 ${
           isBlurred ? 'blur-xl' : ''
         }`}
       >
-        {slideUrls[currentSlide] ? (
-          <div
-            className="absolute inset-0 flex items-center justify-center"
-            style={{ transform: `scale(${zoom})`, transformOrigin: 'center' }}
-          >
-            <img
-              src={slideUrls[currentSlide]}
-              alt={`Slide ${currentSlide + 1}`}
-              className="max-w-full max-h-full object-contain no-select no-drag"
-              draggable={false}
-              onDragStart={(e) => e.preventDefault()}
-            />
-          </div>
-        ) : (
-          <div className="absolute inset-0 flex items-center justify-center">
+        <div
+          className="absolute inset-0 flex items-center justify-center"
+          style={{ transform: `scale(${zoom})`, transformOrigin: 'center' }}
+        >
+          <canvas
+            ref={canvasRef}
+            className="max-w-full max-h-full secure-canvas"
+            style={{
+              pointerEvents: 'none',
+            }}
+          />
+        </div>
+
+        {/* Loading indicator */}
+        {!slideUrls[currentSlide] && (
+          <div className="absolute inset-0 flex items-center justify-center bg-background/50">
             <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           </div>
         )}
 
-        {/* Watermark Overlay */}
-        <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          <div className="absolute inset-0 flex flex-wrap items-center justify-center gap-16 -rotate-12 opacity-[0.08]">
-            {Array.from({ length: 20 }).map((_, i) => (
+        {/* Additional Watermark Overlay (HTML layer) */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden watermark-overlay">
+          <div className="absolute inset-0 flex flex-wrap items-center justify-center gap-20 -rotate-12 opacity-[0.04]">
+            {Array.from({ length: 30 }).map((_, i) => (
               <span
                 key={i}
-                className="text-foreground text-sm font-mono whitespace-nowrap select-none"
+                className="text-foreground text-xs font-mono whitespace-nowrap"
+                style={{ userSelect: 'none' }}
               >
                 {watermarkText}
               </span>
@@ -238,12 +292,16 @@ const SecureViewer = ({ lectureId, slides }: SecureViewerProps) => {
         {/* Blur overlay for content protection */}
         {isBlurred && (
           <div
-            className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-2xl cursor-pointer"
+            className="absolute inset-0 flex items-center justify-center bg-background/90 backdrop-blur-3xl cursor-pointer z-10"
             onClick={() => setIsBlurred(false)}
           >
             <div className="text-center">
-              <Shield className="w-12 h-12 text-primary mx-auto mb-3" />
-              <p className="text-muted-foreground">Click to continue viewing</p>
+              <Shield className="w-16 h-16 text-primary mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-foreground mb-2">Content Protected</h3>
+              <p className="text-muted-foreground mb-4">Click to continue viewing</p>
+              <Button variant="outline" size="sm">
+                Resume Viewing
+              </Button>
             </div>
           </div>
         )}
@@ -260,18 +318,24 @@ const SecureViewer = ({ lectureId, slides }: SecureViewerProps) => {
           <ChevronLeft className="w-4 h-4" />
         </Button>
 
-        <div className="flex items-center gap-1">
-          {sortedSlides.map((_, index) => (
-            <button
-              key={index}
-              onClick={() => setCurrentSlide(index)}
-              className={`w-2 h-2 rounded-full transition-all ${
-                index === currentSlide
-                  ? 'bg-primary w-4'
-                  : 'bg-muted-foreground/30 hover:bg-muted-foreground/50'
-              }`}
-            />
-          ))}
+        <div className="flex items-center gap-1 max-w-md overflow-x-auto py-2">
+          {sortedSlides.length <= 15 ? (
+            sortedSlides.map((_, index) => (
+              <button
+                key={index}
+                onClick={() => setCurrentSlide(index)}
+                className={`w-2 h-2 rounded-full transition-all flex-shrink-0 ${
+                  index === currentSlide
+                    ? 'bg-primary w-4'
+                    : 'bg-muted-foreground/30 hover:bg-muted-foreground/50'
+                }`}
+              />
+            ))
+          ) : (
+            <span className="text-sm text-muted-foreground">
+              {currentSlide + 1} / {sortedSlides.length}
+            </span>
+          )}
         </div>
 
         <Button
@@ -283,6 +347,13 @@ const SecureViewer = ({ lectureId, slides }: SecureViewerProps) => {
           <ChevronRight className="w-4 h-4" />
         </Button>
       </div>
+
+      {/* Invisible overlay to block interactions */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{ zIndex: 1 }}
+        onContextMenu={(e) => e.preventDefault()}
+      />
     </div>
   );
 };
