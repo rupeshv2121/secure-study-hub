@@ -30,15 +30,24 @@ interface Category {
   name: string;
 }
 
+interface Subject {
+  id: string;
+  name: string;
+  category_id: string;
+}
+
 interface Lecture {
   id: string;
   title: string;
   description: string | null;
   category_id: string;
+  subject_id: string | null;
   is_published: boolean;
+  is_free_preview: boolean;
   view_count: number;
   created_at: string;
   categories?: Category;
+  subjects?: Subject;
 }
 
 interface LectureSlide {
@@ -50,6 +59,7 @@ interface LectureSlide {
 const AdminLectures = () => {
   const [lectures, setLectures] = useState<Lecture[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
@@ -63,18 +73,25 @@ const AdminLectures = () => {
     title: '',
     description: '',
     category_id: '',
+    subject_id: '',
     is_published: false,
+    is_free_preview: false,
   });
 
   const fetchData = async () => {
-    const [lecturesRes, categoriesRes] = await Promise.all([
+    const [lecturesRes, categoriesRes, subjectsRes] = await Promise.all([
       supabase
         .from('lectures')
-        .select('*, categories(id, name)')
+        .select('*, categories(id, name), subjects(id, name, category_id)')
         .order('created_at', { ascending: false }),
       supabase
         .from('categories')
         .select('id, name')
+        .order('name'),
+      supabase
+        .from('subjects')
+        .select('id, name, category_id')
+        .eq('is_active', true)
         .order('name'),
     ]);
 
@@ -88,6 +105,10 @@ const AdminLectures = () => {
       setCategories(categoriesRes.data || []);
     }
 
+    if (!subjectsRes.error) {
+      setSubjects(subjectsRes.data || []);
+    }
+
     setLoading(false);
   };
 
@@ -96,7 +117,7 @@ const AdminLectures = () => {
   }, []);
 
   const resetForm = () => {
-    setFormData({ title: '', description: '', category_id: '', is_published: false });
+    setFormData({ title: '', description: '', category_id: '', subject_id: '', is_published: false, is_free_preview: false });
     setEditingLecture(null);
   };
 
@@ -107,7 +128,9 @@ const AdminLectures = () => {
         title: lecture.title,
         description: lecture.description || '',
         category_id: lecture.category_id,
+        subject_id: lecture.subject_id || '',
         is_published: lecture.is_published,
+        is_free_preview: lecture.is_free_preview,
       });
     } else {
       resetForm();
@@ -130,7 +153,9 @@ const AdminLectures = () => {
           title: formData.title,
           description: formData.description || null,
           category_id: formData.category_id,
+          subject_id: formData.subject_id || null,
           is_published: formData.is_published,
+          is_free_preview: formData.is_free_preview,
         })
         .eq('id', editingLecture.id);
 
@@ -148,7 +173,9 @@ const AdminLectures = () => {
           title: formData.title,
           description: formData.description || null,
           category_id: formData.category_id,
+          subject_id: formData.subject_id || null,
           is_published: formData.is_published,
+          is_free_preview: formData.is_free_preview,
         });
 
       if (error) {
@@ -360,7 +387,8 @@ const AdminLectures = () => {
                       </Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      {lecture.categories?.name} • {lecture.view_count} views
+                      {lecture.categories?.name} {lecture.subjects ? `• ${lecture.subjects.name}` : ''} • {lecture.view_count} views
+                      {lecture.is_free_preview && ' • Free Preview'}
                     </p>
                   </div>
                   <div className="flex gap-1">
@@ -451,6 +479,26 @@ const AdminLectures = () => {
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="subject">Subject (for paid access)</Label>
+              <Select
+                value={formData.subject_id}
+                onValueChange={(value) => setFormData({ ...formData, subject_id: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="No subject (free)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">No subject (free)</SelectItem>
+                  {subjects.filter(s => !formData.category_id || s.category_id === formData.category_id).map((sub) => (
+                    <SelectItem key={sub.id} value={sub.id}>
+                      {sub.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="description">Description</Label>
               <Textarea
                 id="description"
@@ -458,6 +506,15 @@ const AdminLectures = () => {
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 placeholder="Brief description of this lecture"
                 rows={3}
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <Label htmlFor="free-preview">Free Preview (Chapter 1)</Label>
+              <Switch
+                id="free-preview"
+                checked={formData.is_free_preview}
+                onCheckedChange={(checked) => setFormData({ ...formData, is_free_preview: checked })}
               />
             </div>
 

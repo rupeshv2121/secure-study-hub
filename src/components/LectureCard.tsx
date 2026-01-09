@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { FileText, Eye, Calendar } from 'lucide-react';
+import { FileText, Eye, Calendar, Lock, Sparkles } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface LectureCardProps {
@@ -12,6 +12,8 @@ interface LectureCardProps {
   categoryColor: string | null;
   viewCount: number;
   createdAt: string;
+  isLocked?: boolean;
+  isFreePreview?: boolean;
 }
 
 const LectureCard = ({
@@ -22,31 +24,54 @@ const LectureCard = ({
   categoryColor,
   viewCount,
   createdAt,
+  isLocked = false,
+  isFreePreview = false,
 }: LectureCardProps) => {
+  const CardWrapper = isLocked ? 'div' : Link;
+  const wrapperProps = isLocked ? {} : { to: `/viewer/${id}` };
+
   return (
-    <Link to={`/viewer/${id}`}>
-      <Card className="group h-full gradient-card border-border/50 hover:border-primary/30 transition-all duration-300 hover:shadow-medium cursor-pointer overflow-hidden">
+    <CardWrapper {...wrapperProps as any}>
+      <Card className={`group h-full gradient-card border-border/50 transition-all duration-300 overflow-hidden ${isLocked ? 'opacity-75 cursor-not-allowed' : 'hover:border-primary/30 hover:shadow-medium cursor-pointer'}`}>
         <CardContent className="p-6">
           <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 transition-transform duration-300 group-hover:scale-110">
-              <FileText className="w-6 h-6 text-primary" />
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 transition-transform duration-300 ${isLocked ? 'bg-muted' : 'bg-primary/10 group-hover:scale-110'}`}>
+              {isLocked ? (
+                <Lock className="w-6 h-6 text-muted-foreground" />
+              ) : (
+                <FileText className="w-6 h-6 text-primary" />
+              )}
             </div>
 
             <div className="flex-1 min-w-0">
-              <Badge
-                variant="secondary"
-                className="mb-2 text-xs"
-                style={{
-                  backgroundColor: categoryColor
-                    ? `${categoryColor}20`
-                    : 'hsl(var(--secondary))',
-                  color: categoryColor || 'hsl(var(--secondary-foreground))',
-                }}
-              >
-                {categoryName}
-              </Badge>
+              <div className="flex items-center gap-2 mb-2">
+                <Badge
+                  variant="secondary"
+                  className="text-xs"
+                  style={{
+                    backgroundColor: categoryColor
+                      ? `${categoryColor}20`
+                      : 'hsl(var(--secondary))',
+                    color: categoryColor || 'hsl(var(--secondary-foreground))',
+                  }}
+                >
+                  {categoryName}
+                </Badge>
+                {isFreePreview && (
+                  <Badge variant="outline" className="text-xs gap-1 border-green-500/50 text-green-500">
+                    <Sparkles className="w-3 h-3" />
+                    Free Preview
+                  </Badge>
+                )}
+                {isLocked && (
+                  <Badge variant="outline" className="text-xs gap-1 border-orange-500/50 text-orange-500">
+                    <Lock className="w-3 h-3" />
+                    Locked
+                  </Badge>
+                )}
+              </div>
 
-              <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors line-clamp-1">
+              <h3 className={`font-semibold transition-colors line-clamp-1 ${isLocked ? 'text-muted-foreground' : 'text-foreground group-hover:text-primary'}`}>
                 {title}
               </h3>
 
@@ -70,7 +95,7 @@ const LectureCard = ({
           </div>
         </CardContent>
       </Card>
-    </Link>
+    </CardWrapper>
   );
 };
 

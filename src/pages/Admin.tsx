@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import Navbar from '@/components/Navbar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { FolderOpen, FileText, BarChart3 } from 'lucide-react';
+import { FolderOpen, FileText, BarChart3, BookOpen } from 'lucide-react';
 import AdminCategories from '@/components/admin/AdminCategories';
 import AdminLectures from '@/components/admin/AdminLectures';
+import AdminSubjects from '@/components/admin/AdminSubjects';
 import AdminStats from '@/components/admin/AdminStats';
 
 const Admin = () => {
@@ -38,14 +39,18 @@ const Admin = () => {
       <main className="container mx-auto px-4 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground mb-2">Admin Dashboard</h1>
-          <p className="text-muted-foreground">Manage your lectures, categories, and view analytics</p>
+          <p className="text-muted-foreground">Manage your lectures, subjects, categories, and view analytics</p>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full max-w-md grid-cols-3">
+          <TabsList className="grid w-full max-w-lg grid-cols-4">
             <TabsTrigger value="lectures" className="gap-2">
               <FileText className="w-4 h-4" />
               <span className="hidden sm:inline">Lectures</span>
+            </TabsTrigger>
+            <TabsTrigger value="subjects" className="gap-2">
+              <BookOpen className="w-4 h-4" />
+              <span className="hidden sm:inline">Subjects</span>
             </TabsTrigger>
             <TabsTrigger value="categories" className="gap-2">
               <FolderOpen className="w-4 h-4" />
@@ -59,6 +64,10 @@ const Admin = () => {
 
           <TabsContent value="lectures" className="space-y-6">
             <AdminLectures />
+          </TabsContent>
+
+          <TabsContent value="subjects" className="space-y-6">
+            <AdminSubjects />
           </TabsContent>
 
           <TabsContent value="categories" className="space-y-6">
