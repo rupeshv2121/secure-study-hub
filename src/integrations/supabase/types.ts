@@ -82,7 +82,9 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          is_free_preview: boolean
           is_published: boolean
+          subject_id: string | null
           title: string
           updated_at: string
           view_count: number
@@ -92,7 +94,9 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          is_free_preview?: boolean
           is_published?: boolean
+          subject_id?: string | null
           title: string
           updated_at?: string
           view_count?: number
@@ -102,7 +106,9 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          is_free_preview?: boolean
           is_published?: boolean
+          subject_id?: string | null
           title?: string
           updated_at?: string
           view_count?: number
@@ -113,6 +119,13 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lectures_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
             referencedColumns: ["id"]
           },
         ]
@@ -144,6 +157,47 @@ export type Database = {
         }
         Relationships: []
       }
+      subjects: {
+        Row: {
+          category_id: string
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          price: number
+          updated_at: string
+        }
+        Insert: {
+          category_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          price?: number
+          updated_at?: string
+        }
+        Update: {
+          category_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          price?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subjects_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -164,6 +218,41 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      user_subject_purchases: {
+        Row: {
+          amount_paid: number
+          id: string
+          payment_status: string
+          purchased_at: string
+          subject_id: string
+          user_id: string
+        }
+        Insert: {
+          amount_paid: number
+          id?: string
+          payment_status?: string
+          purchased_at?: string
+          subject_id: string
+          user_id: string
+        }
+        Update: {
+          amount_paid?: number
+          id?: string
+          payment_status?: string
+          purchased_at?: string
+          subject_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_subject_purchases_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       view_logs: {
         Row: {
@@ -199,6 +288,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_access_lecture: {
+        Args: { _lecture_id: string; _user_id: string }
+        Returns: boolean
+      }
+      has_purchased_subject: {
+        Args: { _subject_id: string; _user_id: string }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

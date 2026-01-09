@@ -38,12 +38,20 @@ const Navbar = () => {
           {/* Navigation Links */}
           <div className="flex items-center gap-6">
             {user && (
-              <Link
-                to="/lectures"
-                className="text-muted-foreground hover:text-foreground transition-colors text-sm font-medium"
-              >
-                Browse Lectures
-              </Link>
+              <>
+                <Link
+                  to="/subjects"
+                  className="text-muted-foreground hover:text-foreground transition-colors text-sm font-medium"
+                >
+                  Subjects
+                </Link>
+                <Link
+                  to="/lectures"
+                  className="text-muted-foreground hover:text-foreground transition-colors text-sm font-medium"
+                >
+                  Lectures
+                </Link>
+              </>
             )}
 
             {/* Auth Section */}
