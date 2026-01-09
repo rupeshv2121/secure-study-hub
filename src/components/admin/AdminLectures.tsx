@@ -20,8 +20,10 @@ import {
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
-import { Plus, Edit, Trash2, FileText, Upload, Eye, EyeOff, Image } from 'lucide-react';
+import { Plus, Edit, Trash2, FileText, Upload, Eye, EyeOff, Image, File } from 'lucide-react';
+import { convertPdfToImages } from '@/utils/pdfToImages';
 
 interface Category {
   id: string;
@@ -54,6 +56,7 @@ const AdminLectures = () => {
   const [editingLecture, setEditingLecture] = useState<Lecture | null>(null);
   const [selectedLectureId, setSelectedLectureId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0, stage: '' });
   const [existingSlides, setExistingSlides] = useState<LectureSlide[]>([]);
 
   const [formData, setFormData] = useState({
@@ -219,24 +222,58 @@ const AdminLectures = () => {
     if (!files || !selectedLectureId) return;
 
     setUploading(true);
-    const fileArray = Array.from(files);
+    setUploadProgress({ current: 0, total: 0, stage: 'Preparing...' });
     
-    // Sort files by name to maintain order
+    const fileArray = Array.from(files);
     fileArray.sort((a, b) => a.name.localeCompare(b.name));
 
     let slideNumber = existingSlides.length;
+    let totalSlides = 0;
+    const imagesToUpload: { blob: Blob; name: string }[] = [];
 
+    // Process files - convert PDFs to images
     for (const file of fileArray) {
+      if (file.type === 'application/pdf') {
+        setUploadProgress({ current: 0, total: 0, stage: `Converting PDF: ${file.name}` });
+        
+        try {
+          const pages = await convertPdfToImages(file, (current, total) => {
+            setUploadProgress({ current, total, stage: `Converting page ${current}/${total}` });
+          });
+          
+          for (const page of pages) {
+            imagesToUpload.push({ 
+              blob: page.blob, 
+              name: `${file.name.replace('.pdf', '')}_page${page.pageNumber}.png` 
+            });
+          }
+          totalSlides += pages.length;
+        } catch (error) {
+          console.error('PDF conversion error:', error);
+          toast.error(`Failed to convert PDF: ${file.name}`);
+        }
+      } else {
+        imagesToUpload.push({ blob: file, name: file.name });
+        totalSlides++;
+      }
+    }
+
+    // Upload all images
+    setUploadProgress({ current: 0, total: totalSlides, stage: 'Uploading slides...' });
+    
+    for (let i = 0; i < imagesToUpload.length; i++) {
+      const { blob, name } = imagesToUpload[i];
       slideNumber++;
-      const fileExt = file.name.split('.').pop();
-      const filePath = `${selectedLectureId}/${slideNumber}.${fileExt}`;
+      setUploadProgress({ current: i + 1, total: totalSlides, stage: `Uploading ${i + 1}/${totalSlides}` });
+      
+      const filePath = `${selectedLectureId}/${slideNumber}.png`;
 
       const { error: uploadError } = await supabase.storage
         .from('lecture-slides')
-        .upload(filePath, file, { upsert: true });
+        .upload(filePath, blob, { upsert: true, contentType: 'image/png' });
 
       if (uploadError) {
-        toast.error(`Failed to upload ${file.name}`);
+        toast.error(`Failed to upload ${name}`);
         continue;
       }
 
@@ -249,12 +286,13 @@ const AdminLectures = () => {
         });
 
       if (dbError) {
-        toast.error(`Failed to save slide record for ${file.name}`);
+        toast.error(`Failed to save slide record for ${name}`);
       }
     }
 
-    toast.success(`Uploaded ${fileArray.length} slides`);
+    toast.success(`Uploaded ${totalSlides} slides`);
     setUploading(false);
+    setUploadProgress({ current: 0, total: 0, stage: '' });
     
     // Refresh slides list
     const { data } = await supabase
@@ -264,6 +302,9 @@ const AdminLectures = () => {
       .order('slide_number');
     
     setExistingSlides(data || []);
+    
+    // Reset file input
+    e.target.value = '';
   };
 
   const handleDeleteSlide = async (slide: LectureSlide) => {
@@ -450,24 +491,44 @@ const AdminLectures = () => {
           
           <div className="space-y-4">
             <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
-              <Upload className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground mb-3">
-                Upload images (JPG, PNG, WebP) for your lecture slides
-              </p>
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={handleFileUpload}
-                disabled={uploading}
-                className="hidden"
-                id="slide-upload"
-              />
-              <label htmlFor="slide-upload">
-                <Button asChild disabled={uploading}>
-                  <span>{uploading ? 'Uploading...' : 'Select Images'}</span>
-                </Button>
-              </label>
+              {uploading ? (
+                <div className="space-y-3">
+                  <File className="w-10 h-10 text-primary mx-auto animate-pulse" />
+                  <p className="text-sm font-medium text-foreground">{uploadProgress.stage}</p>
+                  {uploadProgress.total > 0 && (
+                    <>
+                      <Progress value={(uploadProgress.current / uploadProgress.total) * 100} className="h-2" />
+                      <p className="text-xs text-muted-foreground">
+                        {uploadProgress.current} of {uploadProgress.total}
+                      </p>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <Upload className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-sm text-muted-foreground mb-1">
+                    Upload PDFs or images for your lecture slides
+                  </p>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    PDFs will be automatically converted to secure images
+                  </p>
+                  <input
+                    type="file"
+                    accept="image/*,.pdf,application/pdf"
+                    multiple
+                    onChange={handleFileUpload}
+                    disabled={uploading}
+                    className="hidden"
+                    id="slide-upload"
+                  />
+                  <label htmlFor="slide-upload">
+                    <Button asChild disabled={uploading}>
+                      <span>Select Files</span>
+                    </Button>
+                  </label>
+                </>
+              )}
             </div>
 
             {existingSlides.length > 0 && (
