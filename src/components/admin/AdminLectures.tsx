@@ -22,8 +22,25 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
-import { Plus, Edit, Trash2, FileText, Upload, Eye, EyeOff, Image, File } from 'lucide-react';
-import { convertPdfToImages } from '@/utils/pdfToImages';
+import { Plus, Edit, Trash2, FileText, Upload, Eye, EyeOff, Image, File, GripVertical, AlertTriangle } from 'lucide-react';
+import { convertPdfToImages, getPdfPageCount, MAX_PDF_PAGES } from '@/utils/pdfToImages';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 interface Category {
   id: string;
@@ -46,6 +63,7 @@ interface Lecture {
   is_free_preview: boolean;
   view_count: number;
   created_at: string;
+  sort_order: number;
   categories?: Category;
   subjects?: Subject;
 }
@@ -55,6 +73,115 @@ interface LectureSlide {
   slide_number: number;
   storage_path: string;
 }
+
+// Sortable Lecture Card Component
+const SortableLectureCard = ({ 
+  lecture, 
+  onEdit, 
+  onDelete, 
+  onUpload, 
+  onTogglePublish 
+}: { 
+  lecture: Lecture;
+  onEdit: () => void;
+  onDelete: () => void;
+  onUpload: () => void;
+  onTogglePublish: () => void;
+}) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: lecture.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <Card 
+      ref={setNodeRef} 
+      style={style} 
+      className="group hover:border-primary/50 transition-colors"
+    >
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <button
+              {...attributes}
+              {...listeners}
+              className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded"
+            >
+              <GripVertical className="w-4 h-4 text-muted-foreground" />
+            </button>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <Badge variant="outline" className="text-xs">#{lecture.sort_order}</Badge>
+                <CardTitle className="text-lg truncate">{lecture.title}</CardTitle>
+                <Badge variant={lecture.is_published ? 'default' : 'secondary'}>
+                  {lecture.is_published ? 'Published' : 'Draft'}
+                </Badge>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                {lecture.categories?.name} {lecture.subjects ? `• ${lecture.subjects.name}` : ''} • {lecture.view_count} views
+                {lecture.is_free_preview && ' • Free Preview'}
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onUpload}
+              title="Upload slides"
+            >
+              <Upload className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onTogglePublish}
+              title={lecture.is_published ? 'Unpublish' : 'Publish'}
+            >
+              {lecture.is_published ? (
+                <EyeOff className="w-4 h-4" />
+              ) : (
+                <Eye className="w-4 h-4" />
+              )}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onEdit}
+            >
+              <Edit className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onDelete}
+              className="text-destructive hover:text-destructive"
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+      {lecture.description && (
+        <CardContent className="pt-0">
+          <p className="text-sm text-muted-foreground line-clamp-2">
+            {lecture.description}
+          </p>
+        </CardContent>
+      )}
+    </Card>
+  );
+};
 
 const AdminLectures = () => {
   const [lectures, setLectures] = useState<Lecture[]>([]);
@@ -68,6 +195,9 @@ const AdminLectures = () => {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0, stage: '' });
   const [existingSlides, setExistingSlides] = useState<LectureSlide[]>([]);
+  const [selectedSubjectFilter, setSelectedSubjectFilter] = useState<string>('all');
+  const [pdfWarning, setPdfWarning] = useState<{ show: boolean; totalPages: number; willProcess: number } | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<FileList | null>(null);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -78,12 +208,19 @@ const AdminLectures = () => {
     is_free_preview: false,
   });
 
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
   const fetchData = async () => {
     const [lecturesRes, categoriesRes, subjectsRes] = await Promise.all([
       supabase
         .from('lectures')
         .select('*, categories(id, name), subjects(id, name, category_id)')
-        .order('created_at', { ascending: false }),
+        .order('sort_order', { ascending: true }),
       supabase
         .from('categories')
         .select('id, name')
@@ -167,15 +304,27 @@ const AdminLectures = () => {
         fetchData();
       }
     } else {
+      // Get max sort_order for this subject
+      const subjectId = formData.subject_id || null;
+      const { data: maxOrderData } = await supabase
+        .from('lectures')
+        .select('sort_order')
+        .eq('subject_id', subjectId)
+        .order('sort_order', { ascending: false })
+        .limit(1);
+      
+      const nextOrder = (maxOrderData?.[0]?.sort_order || 0) + 1;
+
       const { error } = await supabase
         .from('lectures')
         .insert({
           title: formData.title,
           description: formData.description || null,
           category_id: formData.category_id,
-          subject_id: formData.subject_id || null,
+          subject_id: subjectId,
           is_published: formData.is_published,
           is_free_preview: formData.is_free_preview,
+          sort_order: nextOrder,
         });
 
       if (error) {
@@ -232,6 +381,8 @@ const AdminLectures = () => {
 
   const handleOpenUploadDialog = async (lectureId: string) => {
     setSelectedLectureId(lectureId);
+    setPdfWarning(null);
+    setPendingFiles(null);
     
     // Fetch existing slides
     const { data } = await supabase
@@ -244,12 +395,41 @@ const AdminLectures = () => {
     setUploadDialogOpen(true);
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || !selectedLectureId) return;
 
+    // Check for large PDFs
+    for (const file of Array.from(files)) {
+      if (file.type === 'application/pdf') {
+        try {
+          const info = await getPdfPageCount(file);
+          if (info.isLimited) {
+            setPdfWarning({
+              show: true,
+              totalPages: info.totalPages,
+              willProcess: info.willProcess,
+            });
+            setPendingFiles(files);
+            return;
+          }
+        } catch (error) {
+          console.error('Failed to read PDF:', error);
+        }
+      }
+    }
+
+    // No large PDFs, proceed directly
+    await processFileUpload(files);
+    e.target.value = '';
+  };
+
+  const processFileUpload = async (files: FileList) => {
+    if (!selectedLectureId) return;
+
     setUploading(true);
     setUploadProgress({ current: 0, total: 0, stage: 'Preparing...' });
+    setPdfWarning(null);
     
     const fileArray = Array.from(files);
     fileArray.sort((a, b) => a.name.localeCompare(b.name));
@@ -320,6 +500,7 @@ const AdminLectures = () => {
     toast.success(`Uploaded ${totalSlides} slides`);
     setUploading(false);
     setUploadProgress({ current: 0, total: 0, stage: '' });
+    setPendingFiles(null);
     
     // Refresh slides list
     const { data } = await supabase
@@ -329,9 +510,6 @@ const AdminLectures = () => {
       .order('slide_number');
     
     setExistingSlides(data || []);
-    
-    // Reset file input
-    e.target.value = '';
   };
 
   const handleDeleteSlide = async (slide: LectureSlide) => {
@@ -342,19 +520,86 @@ const AdminLectures = () => {
     toast.success('Slide deleted');
   };
 
+  // Get filtered lectures based on subject filter
+  const filteredLectures = selectedSubjectFilter === 'all' 
+    ? lectures 
+    : selectedSubjectFilter === 'none'
+      ? lectures.filter(l => !l.subject_id)
+      : lectures.filter(l => l.subject_id === selectedSubjectFilter);
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = filteredLectures.findIndex((l) => l.id === active.id);
+    const newIndex = filteredLectures.findIndex((l) => l.id === over.id);
+
+    const reorderedLectures = arrayMove(filteredLectures, oldIndex, newIndex);
+    
+    // Update local state immediately for smooth UX
+    setLectures(prev => {
+      const otherLectures = prev.filter(l => !filteredLectures.some(fl => fl.id === l.id));
+      return [...otherLectures, ...reorderedLectures].sort((a, b) => a.sort_order - b.sort_order);
+    });
+
+    // Update sort_order in database
+    const updates = reorderedLectures.map((lecture, index) => ({
+      id: lecture.id,
+      sort_order: index + 1,
+    }));
+
+    for (const update of updates) {
+      await supabase
+        .from('lectures')
+        .update({ sort_order: update.sort_order })
+        .eq('id', update.id);
+    }
+
+    toast.success('Lecture order updated');
+    fetchData(); // Refresh to ensure consistency
+  };
+
   if (loading) {
     return <div className="text-muted-foreground">Loading lectures...</div>;
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <h2 className="text-xl font-semibold text-foreground">Lectures</h2>
-        <Button onClick={() => handleOpenDialog()} className="gap-2">
-          <Plus className="w-4 h-4" />
-          Add Lecture
-        </Button>
+        <div className="flex items-center gap-3">
+          <Select value={selectedSubjectFilter} onValueChange={setSelectedSubjectFilter}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="Filter by subject" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Lectures</SelectItem>
+              <SelectItem value="none">No Subject</SelectItem>
+              {subjects.map((sub) => (
+                <SelectItem key={sub.id} value={sub.id}>
+                  {sub.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button onClick={() => handleOpenDialog()} className="gap-2">
+            <Plus className="w-4 h-4" />
+            Add Lecture
+          </Button>
+        </div>
       </div>
+
+      {selectedSubjectFilter !== 'all' && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="py-3">
+            <p className="text-sm text-muted-foreground flex items-center gap-2">
+              <GripVertical className="w-4 h-4" />
+              Drag and drop to reorder lectures within this subject. Order determines how students see content.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {categories.length === 0 && (
         <Card className="border-warning bg-warning/10">
@@ -366,80 +611,41 @@ const AdminLectures = () => {
         </Card>
       )}
 
-      {lectures.length === 0 ? (
+      {filteredLectures.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-12">
             <FileText className="w-12 h-12 text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">No lectures yet. Create your first one!</p>
+            <p className="text-muted-foreground">
+              {selectedSubjectFilter === 'all' 
+                ? 'No lectures yet. Create your first one!' 
+                : 'No lectures in this subject.'}
+            </p>
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-4">
-          {lectures.map((lecture) => (
-            <Card key={lecture.id} className="group hover:border-primary/50 transition-colors">
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <CardTitle className="text-lg truncate">{lecture.title}</CardTitle>
-                      <Badge variant={lecture.is_published ? 'default' : 'secondary'}>
-                        {lecture.is_published ? 'Published' : 'Draft'}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      {lecture.categories?.name} {lecture.subjects ? `• ${lecture.subjects.name}` : ''} • {lecture.view_count} views
-                      {lecture.is_free_preview && ' • Free Preview'}
-                    </p>
-                  </div>
-                  <div className="flex gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleOpenUploadDialog(lecture.id)}
-                      title="Upload slides"
-                    >
-                      <Upload className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => togglePublish(lecture)}
-                      title={lecture.is_published ? 'Unpublish' : 'Publish'}
-                    >
-                      {lecture.is_published ? (
-                        <EyeOff className="w-4 h-4" />
-                      ) : (
-                        <Eye className="w-4 h-4" />
-                      )}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleOpenDialog(lecture)}
-                    >
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDelete(lecture.id)}
-                      className="text-destructive hover:text-destructive"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              {lecture.description && (
-                <CardContent className="pt-0">
-                  <p className="text-sm text-muted-foreground line-clamp-2">
-                    {lecture.description}
-                  </p>
-                </CardContent>
-              )}
-            </Card>
-          ))}
-        </div>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={filteredLectures.map(l => l.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="space-y-4">
+              {filteredLectures.map((lecture) => (
+                <SortableLectureCard
+                  key={lecture.id}
+                  lecture={lecture}
+                  onEdit={() => handleOpenDialog(lecture)}
+                  onDelete={() => handleDelete(lecture.id)}
+                  onUpload={() => handleOpenUploadDialog(lecture.id)}
+                  onTogglePublish={() => togglePublish(lecture)}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
       )}
 
       {/* Create/Edit Lecture Dialog */}
@@ -455,7 +661,7 @@ const AdminLectures = () => {
                 id="title"
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                placeholder="e.g., Introduction to Data Structures"
+                placeholder="e.g., Chapter 1 - Lecture 1: Introduction"
               />
             </div>
 
@@ -564,6 +770,48 @@ const AdminLectures = () => {
           </DialogHeader>
           
           <div className="space-y-4">
+            {/* PDF Warning */}
+            {pdfWarning?.show && (
+              <Card className="border-warning bg-warning/10">
+                <CardContent className="py-4">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="w-5 h-5 text-warning-foreground shrink-0 mt-0.5" />
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-warning-foreground">
+                        Large PDF Detected ({pdfWarning.totalPages} pages)
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Due to browser memory limits, only the first {pdfWarning.willProcess} pages will be processed. 
+                        For large chapters, we recommend uploading lecture-wise (e.g., Ch-01 Lec-01, Lec-02, etc.)
+                      </p>
+                      <div className="flex gap-2 pt-2">
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          onClick={() => {
+                            setPdfWarning(null);
+                            setPendingFiles(null);
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                        <Button 
+                          size="sm"
+                          onClick={() => {
+                            if (pendingFiles) {
+                              processFileUpload(pendingFiles);
+                            }
+                          }}
+                        >
+                          Continue with {pdfWarning.willProcess} pages
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
               {uploading ? (
                 <div className="space-y-3">
@@ -585,13 +833,13 @@ const AdminLectures = () => {
                     Upload PDFs or images for your lecture slides
                   </p>
                   <p className="text-xs text-muted-foreground mb-3">
-                    PDFs will be automatically converted to secure images
+                    PDFs will be converted to secure images (max {MAX_PDF_PAGES} pages per file)
                   </p>
                   <input
                     type="file"
                     accept="image/*,.pdf,application/pdf"
                     multiple
-                    onChange={handleFileUpload}
+                    onChange={handleFileSelect}
                     disabled={uploading}
                     className="hidden"
                     id="slide-upload"
