@@ -7,7 +7,8 @@ import LectureCard from '@/components/LectureCard';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Search, Loader2, ArrowLeft } from 'lucide-react';
+import BackButton from '@/components/BackButton';
+import { Search, Loader2 } from 'lucide-react';
 import { useSubjectAccess } from '@/hooks/useSubjectAccess';
 
 interface Lecture {
@@ -114,12 +115,18 @@ const Lectures = () => {
 
       <main className="container mx-auto px-4 py-8">
         <div className="mb-8 animate-fade-in">
-          <div className="flex items-center gap-4 mb-2">
+          <div className="flex items-center gap-4 mb-4">
             {subjectFilter !== 'all' && (
-              <Button variant="ghost" size="sm" onClick={handleClearFilters}>
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                All Subjects
-              </Button>
+              <BackButton 
+                to={categoryFilter !== 'all' ? `/subjects?category=${categoryFilter}` : '/subjects'} 
+                label="Back to Subjects" 
+              />
+            )}
+            {subjectFilter === 'all' && categoryFilter === 'all' && (
+              <BackButton to="/" label="Back to Categories" />
+            )}
+            {subjectFilter === 'all' && categoryFilter !== 'all' && (
+              <BackButton to={`/subjects?category=${categoryFilter}`} label="Back to Subjects" />
             )}
           </div>
           <h1 className="text-3xl font-bold text-foreground mb-2">Browse Lectures</h1>

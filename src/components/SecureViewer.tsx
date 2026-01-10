@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Shield, AlertTriangle, Lock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Shield, AlertTriangle, Lock, Maximize, Minimize } from 'lucide-react';
 import { useSecurityProtection } from '@/hooks/useSecurityProtection';
 
 interface SecureViewerProps {
@@ -16,6 +16,7 @@ const SecureViewer = ({ lectureId, slides }: SecureViewerProps) => {
   const [slideUrls, setSlideUrls] = useState<Record<number, string>>({});
   const [zoom, setZoom] = useState(1);
   const [isBlurred, setIsBlurred] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [warningMessage, setWarningMessage] = useState('');
   const [warningType, setWarningType] = useState<'warning' | 'error'>('warning');
   const viewerRef = useRef<HTMLDivElement>(null);
@@ -185,6 +186,54 @@ const SecureViewer = ({ lectureId, slides }: SecureViewerProps) => {
   const zoomIn = () => setZoom(Math.min(zoom + 0.25, 3));
   const zoomOut = () => setZoom(Math.max(zoom - 0.25, 0.5));
 
+  // Fullscreen handlers
+  const toggleFullscreen = async () => {
+    if (!viewerRef.current) return;
+
+    try {
+      if (!isFullscreen) {
+        if (viewerRef.current.requestFullscreen) {
+          await viewerRef.current.requestFullscreen();
+        } else if ((viewerRef.current as any).webkitRequestFullscreen) {
+          await (viewerRef.current as any).webkitRequestFullscreen();
+        } else if ((viewerRef.current as any).msRequestFullscreen) {
+          await (viewerRef.current as any).msRequestFullscreen();
+        }
+      } else {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        } else if ((document as any).webkitExitFullscreen) {
+          await (document as any).webkitExitFullscreen();
+        } else if ((document as any).msExitFullscreen) {
+          await (document as any).msExitFullscreen();
+        }
+      }
+    } catch (error) {
+      console.error('Error toggling fullscreen:', error);
+    }
+  };
+
+  // Listen for fullscreen changes
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!(
+        document.fullscreenElement ||
+        (document as any).webkitFullscreenElement ||
+        (document as any).msFullscreenElement
+      ));
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('msfullscreenchange', handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('msfullscreenchange', handleFullscreenChange);
+    };
+  }, []);
+
   // Dynamic watermark text
   const watermarkText = useMemo(
     () => `${user?.email || 'Protected'} • ${new Date().toLocaleString()}`,
@@ -202,7 +251,9 @@ const SecureViewer = ({ lectureId, slides }: SecureViewerProps) => {
   return (
     <div
       ref={viewerRef}
-      className="relative bg-card rounded-xl border border-border shadow-medium overflow-hidden secure-viewer"
+      className={`relative bg-card rounded-xl border border-border shadow-medium overflow-hidden secure-viewer ${
+        isFullscreen ? 'fixed inset-0 z-[9999] rounded-none' : ''
+      }`}
       onDragStart={(e) => e.preventDefault()}
       onDrop={(e) => e.preventDefault()}
       onCopy={(e) => e.preventDefault()}
@@ -241,6 +292,9 @@ const SecureViewer = ({ lectureId, slides }: SecureViewerProps) => {
           <Button variant="ghost" size="icon" onClick={zoomIn} disabled={zoom >= 3}>
             <ZoomIn className="w-4 h-4" />
           </Button>
+          <Button variant="ghost" size="icon" onClick={toggleFullscreen} title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}>
+            {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+          </Button>
         </div>
 
         <div className="text-sm text-muted-foreground">
@@ -250,7 +304,7 @@ const SecureViewer = ({ lectureId, slides }: SecureViewerProps) => {
 
       {/* Slide Display - Using Canvas for security */}
       <div
-        className={`relative aspect-[16/9] bg-background overflow-hidden transition-all duration-300 ${
+        className={`relative ${isFullscreen ? 'h-[calc(100vh-120px)]' : 'aspect-[16/9]'} bg-background overflow-hidden transition-all duration-300 ${
           isBlurred ? 'blur-xl' : ''
         }`}
       >

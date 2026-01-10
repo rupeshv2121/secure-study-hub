@@ -5,14 +5,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import BackButton from '@/components/BackButton';
 import { toast } from 'sonner';
-import { BookOpen, Mail, Lock, User, ArrowRight, Loader2 } from 'lucide-react';
+import { BookOpen, Mail, Lock, User, ArrowRight, Loader2, Phone, KeyRound } from 'lucide-react';
 import { z } from 'zod';
 
 const signUpSchema = z.object({
   fullName: z.string().min(2, 'Name must be at least 2 characters').max(100),
   email: z.string().email('Please enter a valid email'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
+  phoneNumber: z.string().optional().or(z.string().regex(/^\+?[1-9]\d{1,14}$/, 'Please enter a valid phone number with country code')),
 });
 
 const signInSchema = z.object({
@@ -20,15 +22,29 @@ const signInSchema = z.object({
   password: z.string().min(1, 'Password is required'),
 });
 
+const otpSchema = z.object({
+  otp: z.string().length(6, 'OTP must be 6 digits'),
+});
+
+const forgotPasswordSchema = z.object({
+  email: z.string().email('Please enter a valid email'),
+});
+
 const Auth = () => {
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [otp, setOtp] = useState('');
+  const [showOtpVerification, setShowOtpVerification] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const { signUp, signIn, user } = useAuth();
+  const { signUp, signIn, user, sendOtp, verifyOtp, resetPassword } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -38,8 +54,40 @@ const Auth = () => {
   }, [user, navigate]);
 
   const validateForm = () => {
+    if (showOtpVerification) {
+      const result = otpSchema.safeParse({ otp });
+      if (!result.success) {
+        const fieldErrors: Record<string, string> = {};
+        result.error.errors.forEach((err) => {
+          if (err.path[0]) {
+            fieldErrors[err.path[0] as string] = err.message;
+          }
+        });
+        setErrors(fieldErrors);
+        return false;
+      }
+      setErrors({});
+      return true;
+    }
+
+    if (showForgotPassword) {
+      const result = forgotPasswordSchema.safeParse({ email: forgotPasswordEmail });
+      if (!result.success) {
+        const fieldErrors: Record<string, string> = {};
+        result.error.errors.forEach((err) => {
+          if (err.path[0]) {
+            fieldErrors[err.path[0] as string] = err.message;
+          }
+        });
+        setErrors(fieldErrors);
+        return false;
+      }
+      setErrors({});
+      return true;
+    }
+
     const schema = isSignUp ? signUpSchema : signInSchema;
-    const data = isSignUp ? { fullName, email, password } : { email, password };
+    const data = isSignUp ? { fullName, email, password, phoneNumber: phoneNumber || undefined } : { email, password };
 
     const result = schema.safeParse(data);
     if (!result.success) {
@@ -65,17 +113,54 @@ const Auth = () => {
     setIsLoading(true);
 
     try {
-      if (isSignUp) {
-        const { error } = await signUp(email, password, fullName);
+      if (showOtpVerification) {
+        // Verify OTP
+        const { error: verifyError } = await verifyOtp(email, otp, isSignUp ? 'signup' : 'reset');
+        if (verifyError) {
+          toast.error(verifyError.message || 'Invalid OTP. Please try again.');
+        } else {
+          if (isSignUp) {
+            // OTP verified, account is already created, just verify email
+            toast.success('Email verified! Your account is now active.');
+            navigate('/');
+          } else {
+            // For password reset, OTP verification redirects to reset page
+            toast.success('OTP verified! Please check your email for password reset instructions.');
+            setShowOtpVerification(false);
+            setShowForgotPassword(false);
+            setIsSignUp(false);
+          }
+        }
+      } else if (showForgotPassword) {
+        // Send forgot password OTP
+        const { error } = await resetPassword(forgotPasswordEmail);
         if (error) {
-          if (error.message.includes('already registered')) {
+          toast.error(error.message || 'Failed to send reset email. Please try again.');
+        } else {
+          toast.success('Password reset email sent! Please check your inbox.');
+          setShowForgotPassword(false);
+        }
+      } else if (isSignUp) {
+        // Create account first
+        const { error: signUpError } = await signUp(email, password, fullName, phoneNumber);
+        if (signUpError) {
+          if (signUpError.message.includes('already registered') || signUpError.message.includes('already exists')) {
             toast.error('This email is already registered. Please sign in instead.');
           } else {
-            toast.error(error.message);
+            toast.error(signUpError.message);
           }
         } else {
-          toast.success('Account created successfully! Welcome aboard!');
-          navigate('/');
+          // Send OTP for email verification after signup
+          const { error: otpError } = await sendOtp(email, 'signup');
+          if (otpError) {
+            toast.info('Account created! Please check your email for verification link.');
+            // Still allow user to proceed
+            navigate('/');
+          } else {
+            toast.success('Account created! OTP sent to your email. Please verify to continue.');
+            setShowOtpVerification(true);
+            setOtpSent(true);
+          }
         }
       } else {
         const { error } = await signIn(email, password);
@@ -97,8 +182,27 @@ const Auth = () => {
     }
   };
 
+  const handleResendOtp = async () => {
+    setIsLoading(true);
+    try {
+      const { error } = await sendOtp(email, isSignUp ? 'signup' : 'reset');
+      if (error) {
+        toast.error(error.message || 'Failed to resend OTP.');
+      } else {
+        toast.success('OTP resent successfully!');
+      }
+    } catch (error) {
+      toast.error('Failed to resend OTP. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
-    <div className="min-h-screen gradient-hero flex items-center justify-center p-4">
+    <div className="min-h-screen gradient-hero flex items-center justify-center p-4 relative">
+      <div className="absolute top-4 left-4">
+        <BackButton to="/" label="Back to Home" />
+      </div>
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8 animate-fade-in">
@@ -122,83 +226,245 @@ const Auth = () => {
           </CardHeader>
 
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {isSignUp && (
+            {showForgotPassword ? (
+              <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="fullName">Full Name</Label>
+                  <Label htmlFor="forgotEmail">Email</Label>
                   <div className="relative">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
-                      id="fullName"
-                      type="text"
-                      placeholder="Your full name"
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
+                      id="forgotEmail"
+                      type="email"
+                      placeholder="Enter your email"
+                      value={forgotPasswordEmail}
+                      onChange={(e) => setForgotPasswordEmail(e.target.value)}
                       className="pl-10"
                     />
                   </div>
-                  {errors.fullName && (
-                    <p className="text-sm text-destructive">{errors.fullName}</p>
+                  {errors.email && (
+                    <p className="text-sm text-destructive">{errors.email}</p>
                   )}
                 </div>
-              )}
 
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="you@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="pl-10"
-                  />
+                <Button
+                  type="submit"
+                  variant="hero"
+                  size="lg"
+                  className="w-full"
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Sending reset email...
+                    </>
+                  ) : (
+                    <>
+                      Send Reset Link
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-full"
+                  onClick={() => {
+                    setShowForgotPassword(false);
+                    setForgotPasswordEmail('');
+                    setErrors({});
+                  }}
+                >
+                  Back to Sign In
+                </Button>
+              </form>
+            ) : showOtpVerification ? (
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="text-center mb-4">
+                  <KeyRound className="w-12 h-12 text-primary mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">
+                    Enter the 6-digit code sent to <strong>{email}</strong>
+                  </p>
                 </div>
-                {errors.email && (
-                  <p className="text-sm text-destructive">{errors.email}</p>
-                )}
-              </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    id="password"
-                    type="password"
-                    placeholder={isSignUp ? 'Min. 6 characters' : 'Your password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10"
-                  />
+                <div className="space-y-2">
+                  <Label htmlFor="otp">OTP Code</Label>
+                  <div className="relative">
+                    <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      id="otp"
+                      type="text"
+                      placeholder="000000"
+                      value={otp}
+                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      className="pl-10 text-center text-2xl tracking-widest font-mono"
+                      maxLength={6}
+                    />
+                  </div>
+                  {errors.otp && (
+                    <p className="text-sm text-destructive">{errors.otp}</p>
+                  )}
                 </div>
-                {errors.password && (
-                  <p className="text-sm text-destructive">{errors.password}</p>
-                )}
-              </div>
 
-              <Button
-                type="submit"
-                variant="hero"
-                size="lg"
-                className="w-full"
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    {isSignUp ? 'Creating account...' : 'Signing in...'}
-                  </>
-                ) : (
-                  <>
-                    {isSignUp ? 'Create Account' : 'Sign In'}
-                    <ArrowRight className="w-4 h-4" />
-                  </>
+                <Button
+                  type="submit"
+                  variant="hero"
+                  size="lg"
+                  className="w-full"
+                  disabled={isLoading || otp.length !== 6}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Verifying...
+                    </>
+                  ) : (
+                    <>
+                      Verify OTP
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-full text-sm"
+                  onClick={handleResendOtp}
+                  disabled={isLoading}
+                >
+                  Didn't receive code? Resend OTP
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-full"
+                  onClick={() => {
+                    setShowOtpVerification(false);
+                    setOtp('');
+                    setOtpSent(false);
+                    setErrors({});
+                  }}
+                >
+                  Back
+                </Button>
+              </form>
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {isSignUp && (
+                  <div className="space-y-2">
+                    <Label htmlFor="fullName">Full Name</Label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        id="fullName"
+                        type="text"
+                        placeholder="Your full name"
+                        value={fullName}
+                        onChange={(e) => setFullName(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+                    {errors.fullName && (
+                      <p className="text-sm text-destructive">{errors.fullName}</p>
+                    )}
+                  </div>
                 )}
-              </Button>
-            </form>
+
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="you@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                  {errors.email && (
+                    <p className="text-sm text-destructive">{errors.email}</p>
+                  )}
+                </div>
+
+                {isSignUp && (
+                  <div className="space-y-2">
+                    <Label htmlFor="phoneNumber">Phone Number (Optional)</Label>
+                    <div className="relative">
+                      <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        id="phoneNumber"
+                        type="tel"
+                        placeholder="+1234567890"
+                        value={phoneNumber}
+                        onChange={(e) => setPhoneNumber(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+                    {errors.phoneNumber && (
+                      <p className="text-sm text-destructive">{errors.phoneNumber}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Include country code (e.g., +91 for India)
+                    </p>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      id="password"
+                      type="password"
+                      placeholder={isSignUp ? 'Min. 6 characters' : 'Your password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                  {errors.password && (
+                    <p className="text-sm text-destructive">{errors.password}</p>
+                  )}
+                </div>
+
+                {!isSignUp && (
+                  <div className="text-right">
+                    <button
+                      type="button"
+                      onClick={() => setShowForgotPassword(true)}
+                      className="text-sm text-primary hover:underline"
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+                )}
+
+                <Button
+                  type="submit"
+                  variant="hero"
+                  size="lg"
+                  className="w-full"
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      {isSignUp ? 'Sending OTP...' : 'Signing in...'}
+                    </>
+                  ) : (
+                    <>
+                      {isSignUp ? 'Continue with Email Verification' : 'Sign In'}
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </Button>
+              </form>
+            )}
 
             <div className="mt-6 text-center">
               <button

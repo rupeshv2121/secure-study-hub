@@ -14,9 +14,13 @@ interface AuthContextType {
   profile: Profile | null;
   isAdmin: boolean;
   loading: boolean;
-  signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, fullName: string, phoneNumber?: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
+  sendOtp: (email: string, type?: 'signup' | 'reset') => Promise<{ error: Error | null }>;
+  verifyOtp: (email: string, token: string, type?: 'signup' | 'reset') => Promise<{ error: Error | null }>;
+  resetPassword: (email: string) => Promise<{ error: Error | null }>;
+  updatePasswordWithOtp: (email: string, token: string, newPassword: string) => Promise<{ error: Error | null }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -103,21 +107,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  const signUp = async (email: string, password: string, fullName: string) => {
+  const signUp = async (email: string, password: string, fullName: string, phoneNumber?: string) => {
     const redirectUrl = `${window.location.origin}/`;
 
-    const { error } = await supabase.auth.signUp({
+    const { error, data: signUpData } = await supabase.auth.signUp({
       email,
       password,
       options: {
         emailRedirectTo: redirectUrl,
         data: {
           full_name: fullName,
+          phone_number: phoneNumber || null,
         },
       },
     });
 
-    return { error };
+    // Update profile with phone number if provided and user was created
+    if (!error && signUpData.user && phoneNumber) {
+      // Wait a bit for the trigger to create the profile first
+      setTimeout(async () => {
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ email: signUpData.user?.email || email })
+          .eq('id', signUpData.user.id);
+        if (updateError) {
+          console.error('Failed to update profile with phone number:', updateError);
+        }
+      }, 1000);
+    }
+
+    return { error: error ? new Error(error.message) : null };
   };
 
   const signIn = async (email: string, password: string) => {
@@ -137,8 +156,73 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsAdmin(false);
   };
 
+  const sendOtp = async (email: string, type: 'signup' | 'reset' = 'signup') => {
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        shouldCreateUser: type === 'signup',
+        emailRedirectTo: `${window.location.origin}/auth`,
+      },
+    });
+
+    return { error: error ? new Error(error.message) : null };
+  };
+
+  const verifyOtp = async (email: string, token: string, type: 'signup' | 'reset' = 'signup') => {
+    const { error } = await supabase.auth.verifyOtp({
+      email,
+      token,
+      type: type === 'signup' ? 'email' : 'recovery',
+    });
+
+    return { error: error ? new Error(error.message) : null };
+  };
+
+  const resetPassword = async (email: string) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth?mode=reset`,
+    });
+
+    return { error: error ? new Error(error.message) : null };
+  };
+
+  const updatePasswordWithOtp = async (email: string, token: string, newPassword: string) => {
+    // First verify the OTP
+    const { error: verifyError } = await supabase.auth.verifyOtp({
+      email,
+      token,
+      type: 'recovery',
+    });
+
+    if (verifyError) {
+      return { error: new Error(verifyError.message) };
+    }
+
+    // Then update the password
+    const { error: updateError } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+
+    return { error: updateError ? new Error(updateError.message) : null };
+  };
+
   return (
-    <AuthContext.Provider value={{ user, session, profile, isAdmin, loading, signUp, signIn, signOut }}>
+    <AuthContext.Provider 
+      value={{ 
+        user, 
+        session, 
+        profile, 
+        isAdmin, 
+        loading, 
+        signUp, 
+        signIn, 
+        signOut,
+        sendOtp,
+        verifyOtp,
+        resetPassword,
+        updatePasswordWithOtp,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

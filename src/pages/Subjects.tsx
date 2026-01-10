@@ -15,6 +15,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import BackButton from '@/components/BackButton';
 import { Search, Loader2, IndianRupee, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -54,6 +55,8 @@ const Subjects = () => {
   const [purchasing, setPurchasing] = useState(false);
 
   const categoryFilter = searchParams.get('category') || 'all';
+  const selectedCategoryId = searchParams.get('category');
+  const [selectedCategory, setSelectedCategory] = useState<{ name: string } | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -67,12 +70,28 @@ const Subjects = () => {
     }
   }, [user, categoryFilter]);
 
+  useEffect(() => {
+    // Update selected category name when categories are loaded
+    if (categories.length > 0 && selectedCategoryId && categoryFilter !== 'all') {
+      const cat = categories.find(c => c.id === categoryFilter);
+      if (cat) {
+        setSelectedCategory({ name: cat.name });
+      } else {
+        setSelectedCategory(null);
+      }
+    } else {
+      setSelectedCategory(null);
+    }
+  }, [categories, selectedCategoryId, categoryFilter]);
+
   const fetchData = async () => {
     setLoading(true);
 
     // Fetch categories
     const { data: cats } = await supabase.from('categories').select('id, name').order('name');
-    if (cats) setCategories(cats);
+    if (cats) {
+      setCategories(cats);
+    }
 
     // Fetch subjects
     let query = supabase
@@ -160,7 +179,12 @@ const Subjects = () => {
   };
 
   const handleViewLectures = (subjectId: string) => {
-    navigate(`/lectures?subject=${subjectId}`);
+    const params = new URLSearchParams();
+    params.set('subject', subjectId);
+    if (categoryFilter !== 'all') {
+      params.set('category', categoryFilter);
+    }
+    navigate(`/lectures?${params.toString()}`);
   };
 
   if (authLoading) {
@@ -177,8 +201,19 @@ const Subjects = () => {
 
       <main className="container mx-auto px-4 py-8">
         <div className="mb-8 animate-fade-in">
-          <h1 className="text-3xl font-bold text-foreground mb-2">Browse Subjects</h1>
-          <p className="text-muted-foreground">Purchase subjects to unlock all lectures within them</p>
+          <div className="flex items-center gap-4 mb-4">
+            {selectedCategoryId && categoryFilter !== 'all' && (
+              <BackButton to="/" label="Back to Categories" />
+            )}
+          </div>
+          <h1 className="text-3xl font-bold text-foreground mb-2">
+            {selectedCategory ? `${selectedCategory.name} - Subjects` : 'Browse Subjects'}
+          </h1>
+          <p className="text-muted-foreground">
+            {selectedCategory 
+              ? `Purchase subjects to unlock all lectures within them`
+              : 'Purchase subjects to unlock all lectures within them'}
+          </p>
         </div>
 
         {/* Filters */}

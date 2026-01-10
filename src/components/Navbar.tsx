@@ -1,5 +1,3 @@
-import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -8,7 +6,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { BookOpen, User, LogOut, Settings, Shield, Package } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { BookOpen, LogOut, Package, Settings, Shield, User } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
 const Navbar = () => {
@@ -37,10 +37,10 @@ const Navbar = () => {
 
           {/* Navigation Links */}
           <div className="flex items-center gap-6">
-            {user && (
+            {/* {user && (
               <>
                 <Link
-                  to="/subjects"
+                  to={`/subjects?category=${id}`}
                   className="text-muted-foreground hover:text-foreground transition-colors text-sm font-medium"
                 >
                   Subjects
@@ -52,7 +52,7 @@ const Navbar = () => {
                   Lectures
                 </Link>
               </>
-            )}
+            )} */}
 
             {/* Auth Section */}
             {user ? (

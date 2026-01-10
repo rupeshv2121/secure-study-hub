@@ -23,33 +23,85 @@ const AdminStats = () => {
 
   useEffect(() => {
     const fetchStats = async () => {
-      const [usersRes, lecturesRes, categoriesRes, viewsRes, recentViewsRes] = await Promise.all([
-        supabase.from('profiles').select('id', { count: 'exact', head: true }),
-        supabase.from('lectures').select('id', { count: 'exact', head: true }),
-        supabase.from('categories').select('id', { count: 'exact', head: true }),
-        supabase.from('view_logs').select('id', { count: 'exact', head: true }),
-        supabase
+      try {
+        // Fetch counts - use select with count
+        const [usersRes, lecturesRes, categoriesRes, viewsRes] = await Promise.all([
+          supabase.from('profiles').select('id', { count: 'exact', head: true }),
+          supabase.from('lectures').select('id', { count: 'exact', head: true }),
+          supabase.from('categories').select('id', { count: 'exact', head: true }),
+          supabase.from('view_logs').select('id', { count: 'exact', head: true }),
+        ]);
+
+        // Also get total views from lectures table (sum of view_count) - this is more accurate
+        const { data: lecturesData } = await supabase
+          .from('lectures')
+          .select('view_count');
+
+        const totalViewsFromLectures = lecturesData?.reduce((sum, lec) => sum + (lec.view_count || 0), 0) || 0;
+        const totalViewsFromLogs = viewsRes.count || 0;
+        // Use logs count (actual view events) or lectures view_count (whichever is higher)
+        const finalViewCount = Math.max(totalViewsFromLogs, totalViewsFromLectures);
+
+        // Fetch recent views - get lecture titles
+        const { data: recentViewsData } = await supabase
           .from('view_logs')
           .select(`
             viewed_at,
-            lectures(title),
-            profiles:user_id(email)
+            lecture_id,
+            user_id,
+            lectures(title)
           `)
           .order('viewed_at', { ascending: false })
-          .limit(10),
-      ]);
+          .limit(10);
 
-      setStats({
-        totalUsers: usersRes.count || 0,
-        totalLectures: lecturesRes.count || 0,
-        totalCategories: categoriesRes.count || 0,
-        totalViews: viewsRes.count || 0,
-        recentViews: (recentViewsRes.data || []).map((v: any) => ({
-          lecture_title: v.lectures?.title || 'Unknown',
-          user_email: v.profiles?.email || 'Unknown',
-          viewed_at: v.viewed_at,
-        })),
-      });
+        // Fetch user emails for recent views
+        const recentViewsWithEmails = await Promise.all(
+          (recentViewsData || []).map(async (v: any) => {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('email')
+              .eq('id', v.user_id)
+              .single();
+            
+            return {
+              lecture_title: v.lectures?.title || 'Unknown',
+              user_email: profile?.email || 'Unknown',
+              viewed_at: v.viewed_at,
+            };
+          })
+        );
+
+        setStats({
+          totalUsers: usersRes.count || 0,
+          totalLectures: lecturesRes.count || 0,
+          totalCategories: categoriesRes.count || 0,
+          totalViews: finalViewCount,
+          recentViews: recentViewsWithEmails,
+        });
+      } catch (error) {
+        console.error('Error fetching stats:', error);
+        // Fallback: simpler queries without joins
+        const [usersRes, lecturesRes, categoriesRes] = await Promise.all([
+          supabase.from('profiles').select('id', { count: 'exact', head: true }),
+          supabase.from('lectures').select('id', { count: 'exact', head: true }),
+          supabase.from('categories').select('id', { count: 'exact', head: true }),
+        ]);
+
+        // Get view count from lectures table
+        const { data: lecturesWithViews } = await supabase
+          .from('lectures')
+          .select('view_count');
+
+        const totalViews = lecturesWithViews?.reduce((sum, lec) => sum + (lec.view_count || 0), 0) || 0;
+
+        setStats({
+          totalUsers: usersRes.count || 0,
+          totalLectures: lecturesRes.count || 0,
+          totalCategories: categoriesRes.count || 0,
+          totalViews: totalViews,
+          recentViews: [],
+        });
+      }
       setLoading(false);
     };
 

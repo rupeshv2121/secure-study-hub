@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
+import BackButton from '@/components/BackButton';
 import Navbar from '@/components/Navbar';
 import SecureViewer from '@/components/SecureViewer';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+import { Loader2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 
 interface Lecture {
   id: string;
@@ -67,7 +68,22 @@ const Viewer = () => {
 
   const logView = async () => {
     if (user && id) {
+      // Log view to view_logs table
       await supabase.from('view_logs').insert({ lecture_id: id, user_id: user.id });
+      
+      // Increment view_count in lectures table
+      const { data: lecture } = await supabase
+        .from('lectures')
+        .select('view_count')
+        .eq('id', id)
+        .single();
+      
+      if (lecture) {
+        await supabase
+          .from('lectures')
+          .update({ view_count: (lecture.view_count || 0) + 1 })
+          .eq('id', id);
+      }
     }
   };
 
@@ -96,10 +112,7 @@ const Viewer = () => {
       <Navbar />
 
       <main className="container mx-auto px-4 py-8">
-        <Button variant="ghost" className="mb-4" onClick={() => navigate('/lectures')}>
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Lectures
-        </Button>
+        <BackButton to="/lectures" label="Back to Lectures" className="mb-4" />
 
         <div className="mb-6 animate-fade-in">
           <p className="text-sm text-primary font-medium mb-1">

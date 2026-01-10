@@ -1,6 +1,6 @@
-import { Link } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
-import { GraduationCap, Brain, Briefcase, Code, BookOpen, LucideIcon } from 'lucide-react';
+import { BookOpen, Brain, Briefcase, Code, GraduationCap, LucideIcon } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 interface CategoryCardProps {
   id: string;
@@ -8,7 +8,7 @@ interface CategoryCardProps {
   description: string | null;
   icon: string | null;
   color: string | null;
-  lectureCount?: number;
+  subject_count?: number;
 }
 
 const iconMap: Record<string, LucideIcon> = {
@@ -19,11 +19,11 @@ const iconMap: Record<string, LucideIcon> = {
   BookOpen,
 };
 
-const CategoryCard = ({ id, name, description, icon, color, lectureCount = 0 }: CategoryCardProps) => {
+const CategoryCard = ({ id, name, description, icon, color, subject_count =0 }: CategoryCardProps) => {
   const IconComponent = icon && iconMap[icon] ? iconMap[icon] : BookOpen;
 
   return (
-    <Link to={`/lectures?category=${id}`}>
+    <Link to={`/subjects?category=${id}`}>
       <Card className="group h-full gradient-card border-border/50 hover:border-primary/30 transition-all duration-300 hover:shadow-medium cursor-pointer overflow-hidden">
         <CardContent className="p-6">
           <div className="flex items-start gap-4">
@@ -44,7 +44,7 @@ const CategoryCard = ({ id, name, description, icon, color, lectureCount = 0 }: 
                 </p>
               )}
               <p className="text-xs text-muted-foreground mt-2">
-                {lectureCount} {lectureCount === 1 ? 'lecture' : 'lectures'}
+                {subject_count} {subject_count === 1 ? "subject" : "subjects"}
               </p>
             </div>
           </div>

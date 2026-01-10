@@ -1,8 +1,5 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
@@ -10,6 +7,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Progress } from '@/components/ui/progress';
 import {
   Select,
   SelectContent,
@@ -17,21 +17,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { toast } from 'sonner';
-import { Plus, Edit, Trash2, FileText, Upload, Eye, EyeOff, Image, File, GripVertical, AlertTriangle } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { supabase } from '@/integrations/supabase/client';
 import { convertPdfToImages, getPdfPageCount, MAX_PDF_PAGES } from '@/utils/pdfToImages';
 import {
-  DndContext,
   closestCenter,
+  DndContext,
+  DragEndEvent,
   KeyboardSensor,
   PointerSensor,
   useSensor,
   useSensors,
-  DragEndEvent,
 } from '@dnd-kit/core';
 import {
   arrayMove,
@@ -41,6 +38,9 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { AlertTriangle, Edit, Eye, EyeOff, File, FileText, GripVertical, Image, Plus, Trash2, Upload } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 
 interface Category {
   id: string;
@@ -219,7 +219,7 @@ const AdminLectures = () => {
     const [lecturesRes, categoriesRes, subjectsRes] = await Promise.all([
       supabase
         .from('lectures')
-        .select('*, categories(id, name), subjects(id, name, category_id)')
+        .select('id, title, description, category_id, subject_id, is_published, is_free_preview, view_count, created_at, sort_order, categories(id, name), subjects(id, name, category_id)')
         .order('sort_order', { ascending: true }),
       supabase
         .from('categories')
@@ -235,7 +235,37 @@ const AdminLectures = () => {
     if (lecturesRes.error) {
       toast.error('Failed to load lectures');
     } else {
-      setLectures(lecturesRes.data || []);
+      // Fetch view counts from view_logs for each lecture
+      const lectureIds = (lecturesRes.data || []).map(l => l.id);
+      
+      // Count views per lecture from view_logs
+      const viewCounts = new Map<string, number>();
+      if (lectureIds.length > 0) {
+        const { data: viewLogs } = await supabase
+          .from('view_logs')
+          .select('lecture_id')
+          .in('lecture_id', lectureIds);
+        
+        if (viewLogs) {
+          viewLogs.forEach((log) => {
+            const count = viewCounts.get(log.lecture_id) || 0;
+            viewCounts.set(log.lecture_id, count + 1);
+          });
+        }
+      }
+
+      // Update lectures with accurate view counts (use view_logs count or lecture.view_count, whichever is higher)
+      const lecturesWithAccurateViews = (lecturesRes.data || []).map((lecture) => {
+        const logsCount = viewCounts.get(lecture.id) || 0;
+        const lectureViewCount = lecture.view_count || 0;
+        // Use the higher value to ensure accuracy (view_logs is the source of truth)
+        return {
+          ...lecture,
+          view_count: Math.max(logsCount, lectureViewCount),
+        };
+      });
+
+      setLectures(lecturesWithAccurateViews);
     }
 
     if (!categoriesRes.error) {

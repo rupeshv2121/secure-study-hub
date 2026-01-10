@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import Navbar from '@/components/Navbar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FolderOpen, FileText, BarChart3, BookOpen } from 'lucide-react';
+import BackButton from '@/components/BackButton';
 import AdminCategories from '@/components/admin/AdminCategories';
 import AdminLectures from '@/components/admin/AdminLectures';
 import AdminSubjects from '@/components/admin/AdminSubjects';
@@ -38,6 +39,7 @@ const Admin = () => {
       
       <main className="container mx-auto px-4 py-8">
         <div className="mb-8">
+          <BackButton to="/" label="Back to Home" className="mb-4" />
           <h1 className="text-3xl font-bold text-foreground mb-2">Admin Dashboard</h1>
           <p className="text-muted-foreground">Manage your lectures, subjects, categories, and view analytics</p>
         </div>

@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import Navbar from '@/components/Navbar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import BackButton from '@/components/BackButton';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, BookOpen, Calendar, ChevronRight, Package } from 'lucide-react';
 
@@ -123,6 +124,7 @@ const MyPurchases = () => {
 
       <main className="container mx-auto px-4 py-8">
         <div className="mb-8 animate-fade-in">
+          <BackButton to="/" label="Back to Home" className="mb-4" />
           <h1 className="text-3xl font-bold text-foreground mb-2">My Purchases</h1>
           <p className="text-muted-foreground">
             Access all subjects you've purchased with their lectures
