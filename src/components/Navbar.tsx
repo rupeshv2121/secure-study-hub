@@ -8,7 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { BookOpen, User, LogOut, Settings, Shield } from 'lucide-react';
+import { BookOpen, User, LogOut, Settings, Shield, Package } from 'lucide-react';
 import { toast } from 'sonner';
 
 const Navbar = () => {
@@ -80,6 +80,11 @@ const Navbar = () => {
                       <DropdownMenuSeparator />
                     </>
                   )}
+                  
+                  <DropdownMenuItem onClick={() => navigate('/my-purchases')}>
+                    <Package className="w-4 h-4 mr-2" />
+                    My Purchases
+                  </DropdownMenuItem>
                   
                   <DropdownMenuItem onClick={() => navigate('/profile')}>
                     <Settings className="w-4 h-4 mr-2" />

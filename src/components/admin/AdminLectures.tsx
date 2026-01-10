@@ -460,6 +460,39 @@ const AdminLectures = () => {
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="subject">Subject (required for paid access)</Label>
+              <Select
+                value={formData.subject_id}
+                onValueChange={(value) => {
+                  const selectedSubject = subjects.find(s => s.id === value);
+                  setFormData({ 
+                    ...formData, 
+                    subject_id: value,
+                    category_id: selectedSubject?.category_id || formData.category_id
+                  });
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a subject" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">No subject (free lecture)</SelectItem>
+                  {subjects.map((sub) => {
+                    const cat = categories.find(c => c.id === sub.category_id);
+                    return (
+                      <SelectItem key={sub.id} value={sub.id}>
+                        {sub.name} {cat ? `(${cat.name})` : ''}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Content uploaded to this lecture will be accessible under this subject after purchase
+              </p>
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="category">Category</Label>
               <Select
                 value={formData.category_id}
@@ -476,26 +509,9 @@ const AdminLectures = () => {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="subject">Subject (for paid access)</Label>
-              <Select
-                value={formData.subject_id}
-                onValueChange={(value) => setFormData({ ...formData, subject_id: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="No subject (free)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">No subject (free)</SelectItem>
-                  {subjects.filter(s => !formData.category_id || s.category_id === formData.category_id).map((sub) => (
-                    <SelectItem key={sub.id} value={sub.id}>
-                      {sub.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <p className="text-xs text-muted-foreground">
+                {formData.subject_id ? 'Auto-filled from subject' : 'Required for free lectures'}
+              </p>
             </div>
 
             <div className="space-y-2">
