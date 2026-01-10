@@ -462,12 +462,13 @@ const AdminLectures = () => {
             <div className="space-y-2">
               <Label htmlFor="subject">Subject (required for paid access)</Label>
               <Select
-                value={formData.subject_id}
+                value={formData.subject_id || "none"}
                 onValueChange={(value) => {
-                  const selectedSubject = subjects.find(s => s.id === value);
+                  const actualValue = value === "none" ? "" : value;
+                  const selectedSubject = subjects.find(s => s.id === actualValue);
                   setFormData({ 
                     ...formData, 
-                    subject_id: value,
+                    subject_id: actualValue,
                     category_id: selectedSubject?.category_id || formData.category_id
                   });
                 }}
@@ -476,7 +477,7 @@ const AdminLectures = () => {
                   <SelectValue placeholder="Select a subject" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">No subject (free lecture)</SelectItem>
+                  <SelectItem value="none">No subject (free lecture)</SelectItem>
                   {subjects.map((sub) => {
                     const cat = categories.find(c => c.id === sub.category_id);
                     return (
