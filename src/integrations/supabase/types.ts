@@ -84,6 +84,7 @@ export type Database = {
           id: string
           is_free_preview: boolean
           is_published: boolean
+          sort_order: number
           subject_id: string | null
           title: string
           updated_at: string
@@ -96,6 +97,7 @@ export type Database = {
           id?: string
           is_free_preview?: boolean
           is_published?: boolean
+          sort_order?: number
           subject_id?: string | null
           title: string
           updated_at?: string
@@ -108,6 +110,7 @@ export type Database = {
           id?: string
           is_free_preview?: boolean
           is_published?: boolean
+          sort_order?: number
           subject_id?: string | null
           title?: string
           updated_at?: string

@@ -3,6 +3,9 @@ export interface ConvertedPage {
   blob: Blob;
 }
 
+// Maximum pages to convert - browser memory limitation
+export const MAX_PDF_PAGES = 200;
+
 // Dynamically load PDF.js from CDN to avoid build issues
 const loadPdfJs = async () => {
   if ((window as any).pdfjsLib) {
@@ -23,15 +26,36 @@ const loadPdfJs = async () => {
   });
 };
 
+export interface PdfInfo {
+  totalPages: number;
+  willProcess: number;
+  isLimited: boolean;
+}
+
+export const getPdfPageCount = async (file: File): Promise<PdfInfo> => {
+  const pdfjsLib = await loadPdfJs();
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const totalPages = pdf.numPages;
+  const willProcess = Math.min(totalPages, MAX_PDF_PAGES);
+  
+  return {
+    totalPages,
+    willProcess,
+    isLimited: totalPages > MAX_PDF_PAGES
+  };
+};
+
 export const convertPdfToImages = async (
   file: File,
-  onProgress?: (current: number, total: number) => void
+  onProgress?: (current: number, total: number) => void,
+  maxPages: number = MAX_PDF_PAGES
 ): Promise<ConvertedPage[]> => {
   const pdfjsLib = await loadPdfJs();
   
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-  const totalPages = pdf.numPages;
+  const totalPages = Math.min(pdf.numPages, maxPages);
   const pages: ConvertedPage[] = [];
 
   for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
@@ -60,6 +84,10 @@ export const convertPdfToImages = async (
     });
 
     pages.push({ pageNumber: pageNum, blob });
+    
+    // Clean up canvas to free memory
+    canvas.width = 0;
+    canvas.height = 0;
   }
 
   return pages;
