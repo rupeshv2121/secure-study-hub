@@ -108,33 +108,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signUp = async (email: string, password: string, fullName: string, phoneNumber?: string) => {
-    const redirectUrl = `${window.location.origin}/`;
-
-    const { error, data: signUpData } = await supabase.auth.signUp({
+    // Store signup data temporarily for later use after OTP verification
+    const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        emailRedirectTo: redirectUrl,
+        emailRedirectTo: `${window.location.origin}/auth`,
         data: {
           full_name: fullName,
           phone_number: phoneNumber || null,
         },
       },
     });
-
-    // Update profile with phone number if provided and user was created
-    if (!error && signUpData.user && phoneNumber) {
-      // Wait a bit for the trigger to create the profile first
-      setTimeout(async () => {
-        const { error: updateError } = await supabase
-          .from('profiles')
-          .update({ email: signUpData.user?.email || email })
-          .eq('id', signUpData.user.id);
-        if (updateError) {
-          console.error('Failed to update profile with phone number:', updateError);
-        }
-      }, 1000);
-    }
 
     return { error: error ? new Error(error.message) : null };
   };
@@ -179,29 +164,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const resetPassword = async (email: string) => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth?mode=reset`,
+    // Use signInWithOtp with type 'recovery' to send OTP instead of magic link
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        shouldCreateUser: false,
+      },
     });
 
     return { error: error ? new Error(error.message) : null };
   };
 
   const updatePasswordWithOtp = async (email: string, token: string, newPassword: string) => {
-    // First verify the OTP
+    // First verify the OTP (using 'email' type since we sent via signInWithOtp)
     const { error: verifyError } = await supabase.auth.verifyOtp({
       email,
       token,
-      type: 'recovery',
+      type: 'email',
     });
 
     if (verifyError) {
       return { error: new Error(verifyError.message) };
     }
 
-    // Then update the password
+    // Then update the password (user is now authenticated after verifyOtp)
     const { error: updateError } = await supabase.auth.updateUser({
       password: newPassword,
     });
+
+    // Sign out after password update so user can sign in with new password
+    if (!updateError) {
+      await supabase.auth.signOut();
+    }
 
     return { error: updateError ? new Error(updateError.message) : null };
   };
