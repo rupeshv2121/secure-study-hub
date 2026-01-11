@@ -166,12 +166,16 @@ const Auth = () => {
           navigate('/');
         }
       } else if (showForgotPassword) {
-        // Send forgot password OTP
+        // Send forgot password OTP (magic link that contains a code)
         const { error } = await resetPassword(forgotPasswordEmail);
         if (error) {
-          toast.error(error.message || 'Failed to send reset email. Please try again.');
+          if (error.message.includes('User not found') || error.message.includes('no user')) {
+            toast.error('No account found with this email address.');
+          } else {
+            toast.error(error.message || 'Failed to send reset email. Please try again.');
+          }
         } else {
-          toast.success('OTP sent to your email! Enter the code to reset your password.');
+          toast.success('Verification code sent to your email! Enter the 6-digit code to reset your password.');
           setShowForgotPassword(false);
           setShowResetPasswordForm(true);
           setOtpSent(true);
@@ -186,9 +190,9 @@ const Auth = () => {
             toast.error(signUpError.message);
           }
         } else {
-          toast.success('Account created! Please check your email for verification.');
-          // With auto-confirm enabled, redirect directly
-          navigate('/');
+          toast.success('Account created! Please check your email and click the verification link to activate your account.');
+          // Show OTP verification screen
+          setShowOtpVerification(true);
         }
       } else {
         const { error } = await signIn(email, password);
