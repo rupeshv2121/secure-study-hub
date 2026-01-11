@@ -30,6 +30,15 @@ const forgotPasswordSchema = z.object({
   email: z.string().email('Please enter a valid email'),
 });
 
+const resetPasswordSchema = z.object({
+  otp: z.string().length(6, 'OTP must be 6 digits'),
+  newPassword: z.string().min(6, 'Password must be at least 6 characters'),
+  confirmPassword: z.string().min(6, 'Password must be at least 6 characters'),
+}).refine((data) => data.newPassword === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
+});
+
 const Auth = () => {
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
@@ -39,12 +48,15 @@ const Auth = () => {
   const [otp, setOtp] = useState('');
   const [showOtpVerification, setShowOtpVerification] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [showResetPasswordForm, setShowResetPasswordForm] = useState(false);
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const { signUp, signIn, user, sendOtp, verifyOtp, resetPassword } = useAuth();
+  const { signUp, signIn, user, sendOtp, verifyOtp, resetPassword, updatePasswordWithOtp } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -54,6 +66,22 @@ const Auth = () => {
   }, [user, navigate]);
 
   const validateForm = () => {
+    if (showResetPasswordForm) {
+      const result = resetPasswordSchema.safeParse({ otp, newPassword, confirmPassword });
+      if (!result.success) {
+        const fieldErrors: Record<string, string> = {};
+        result.error.errors.forEach((err) => {
+          if (err.path[0]) {
+            fieldErrors[err.path[0] as string] = err.message;
+          }
+        });
+        setErrors(fieldErrors);
+        return false;
+      }
+      setErrors({});
+      return true;
+    }
+
     if (showOtpVerification) {
       const result = otpSchema.safeParse({ otp });
       if (!result.success) {
@@ -113,23 +141,29 @@ const Auth = () => {
     setIsLoading(true);
 
     try {
-      if (showOtpVerification) {
-        // Verify OTP
-        const { error: verifyError } = await verifyOtp(email, otp, isSignUp ? 'signup' : 'reset');
+      if (showResetPasswordForm) {
+        // Verify OTP and update password
+        const { error } = await updatePasswordWithOtp(forgotPasswordEmail, otp, newPassword);
+        if (error) {
+          toast.error(error.message || 'Failed to reset password. Please try again.');
+        } else {
+          toast.success('Password reset successful! Please sign in with your new password.');
+          setShowResetPasswordForm(false);
+          setShowForgotPassword(false);
+          setOtp('');
+          setNewPassword('');
+          setConfirmPassword('');
+          setForgotPasswordEmail('');
+          setIsSignUp(false);
+        }
+      } else if (showOtpVerification) {
+        // Verify OTP for signup
+        const { error: verifyError } = await verifyOtp(email, otp, 'signup');
         if (verifyError) {
           toast.error(verifyError.message || 'Invalid OTP. Please try again.');
         } else {
-          if (isSignUp) {
-            // OTP verified, account is already created, just verify email
-            toast.success('Email verified! Your account is now active.');
-            navigate('/');
-          } else {
-            // For password reset, OTP verification redirects to reset page
-            toast.success('OTP verified! Please check your email for password reset instructions.');
-            setShowOtpVerification(false);
-            setShowForgotPassword(false);
-            setIsSignUp(false);
-          }
+          toast.success('Email verified! Your account is now active.');
+          navigate('/');
         }
       } else if (showForgotPassword) {
         // Send forgot password OTP
@@ -137,8 +171,10 @@ const Auth = () => {
         if (error) {
           toast.error(error.message || 'Failed to send reset email. Please try again.');
         } else {
-          toast.success('Password reset email sent! Please check your inbox.');
+          toast.success('OTP sent to your email! Enter the code to reset your password.');
           setShowForgotPassword(false);
+          setShowResetPasswordForm(true);
+          setOtpSent(true);
         }
       } else if (isSignUp) {
         // Create account first
@@ -150,23 +186,17 @@ const Auth = () => {
             toast.error(signUpError.message);
           }
         } else {
-          // Send OTP for email verification after signup
-          const { error: otpError } = await sendOtp(email, 'signup');
-          if (otpError) {
-            toast.info('Account created! Please check your email for verification link.');
-            // Still allow user to proceed
-            navigate('/');
-          } else {
-            toast.success('Account created! OTP sent to your email. Please verify to continue.');
-            setShowOtpVerification(true);
-            setOtpSent(true);
-          }
+          toast.success('Account created! Please check your email for verification.');
+          // With auto-confirm enabled, redirect directly
+          navigate('/');
         }
       } else {
         const { error } = await signIn(email, password);
         if (error) {
           if (error.message.includes('Invalid login credentials')) {
             toast.error('Invalid email or password. Please try again.');
+          } else if (error.message.includes('Email not confirmed')) {
+            toast.error('Please verify your email before signing in.');
           } else {
             toast.error(error.message);
           }
@@ -185,7 +215,10 @@ const Auth = () => {
   const handleResendOtp = async () => {
     setIsLoading(true);
     try {
-      const { error } = await sendOtp(email, isSignUp ? 'signup' : 'reset');
+      const targetEmail = showResetPasswordForm ? forgotPasswordEmail : email;
+      const { error } = showResetPasswordForm 
+        ? await resetPassword(forgotPasswordEmail)
+        : await sendOtp(email, 'signup');
       if (error) {
         toast.error(error.message || 'Failed to resend OTP.');
       } else {
@@ -216,17 +249,140 @@ const Auth = () => {
         <Card className="shadow-medium animate-slide-up border-border/50">
           <CardHeader className="text-center pb-4">
             <CardTitle className="text-xl">
-              {isSignUp ? 'Create your account' : 'Welcome back'}
+              {showResetPasswordForm 
+                ? 'Reset your password'
+                : showForgotPassword 
+                  ? 'Forgot password?'
+                  : showOtpVerification
+                    ? 'Verify your email'
+                    : isSignUp 
+                      ? 'Create your account' 
+                      : 'Welcome back'}
             </CardTitle>
             <CardDescription>
-              {isSignUp
-                ? 'Start learning with secure lecture notes'
-                : 'Sign in to access your lectures'}
+              {showResetPasswordForm
+                ? 'Enter the OTP and your new password'
+                : showForgotPassword
+                  ? 'Enter your email to receive a reset code'
+                  : showOtpVerification
+                    ? 'Check your inbox for the verification code'
+                    : isSignUp
+                      ? 'Start learning with secure lecture notes'
+                      : 'Sign in to access your lectures'}
             </CardDescription>
           </CardHeader>
 
           <CardContent>
-            {showForgotPassword ? (
+            {showResetPasswordForm ? (
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="text-center mb-4">
+                  <KeyRound className="w-12 h-12 text-primary mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">
+                    Enter the 6-digit code sent to <strong>{forgotPasswordEmail}</strong>
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="resetOtp">OTP Code</Label>
+                  <div className="relative">
+                    <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      id="resetOtp"
+                      type="text"
+                      placeholder="000000"
+                      value={otp}
+                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      className="pl-10 text-center text-2xl tracking-widest font-mono"
+                      maxLength={6}
+                    />
+                  </div>
+                  {errors.otp && (
+                    <p className="text-sm text-destructive">{errors.otp}</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="newPassword">New Password</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      id="newPassword"
+                      type="password"
+                      placeholder="Min. 6 characters"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                  {errors.newPassword && (
+                    <p className="text-sm text-destructive">{errors.newPassword}</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="confirmPassword">Confirm Password</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      id="confirmPassword"
+                      type="password"
+                      placeholder="Confirm your password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                  {errors.confirmPassword && (
+                    <p className="text-sm text-destructive">{errors.confirmPassword}</p>
+                  )}
+                </div>
+
+                <Button
+                  type="submit"
+                  variant="hero"
+                  size="lg"
+                  className="w-full"
+                  disabled={isLoading || otp.length !== 6}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Resetting password...
+                    </>
+                  ) : (
+                    <>
+                      Reset Password
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-full text-sm"
+                  onClick={handleResendOtp}
+                  disabled={isLoading}
+                >
+                  Didn't receive code? Resend OTP
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-full"
+                  onClick={() => {
+                    setShowResetPasswordForm(false);
+                    setOtp('');
+                    setNewPassword('');
+                    setConfirmPassword('');
+                    setErrors({});
+                  }}
+                >
+                  Back to Sign In
+                </Button>
+              </form>
+            ) : showForgotPassword ? (
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="forgotEmail">Email</Label>
@@ -256,11 +412,11 @@ const Auth = () => {
                   {isLoading ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Sending reset email...
+                      Sending OTP...
                     </>
                   ) : (
                     <>
-                      Send Reset Link
+                      Send OTP
                       <ArrowRight className="w-4 h-4" />
                     </>
                   )}
