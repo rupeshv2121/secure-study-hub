@@ -158,22 +158,10 @@ const Subjects = () => {
     
     setPurchasing(true);
     
-    // For now, we'll simulate a successful payment
-    // In production, you'd integrate with a payment gateway here
-    const { error } = await supabase.from('user_subject_purchases').insert({
-      user_id: user.id,
-      subject_id: selectedSubject.id,
-      amount_paid: selectedSubject.price,
-      payment_status: 'completed',
-    });
-
-    if (error) {
-      toast.error('Purchase failed. Please try again.');
-    } else {
-      toast.success(`Successfully purchased ${selectedSubject.name}!`);
-      setPurchasedSubjects(prev => new Set([...prev, selectedSubject.id]));
-      setPurchaseDialogOpen(false);
-    }
+    // Payment integration required - direct inserts are blocked for security
+    // This should integrate with a payment gateway (Stripe/Razorpay) via edge function
+    toast.info('Payment integration coming soon. Please contact support to complete your purchase.');
+    setPurchaseDialogOpen(false);
     
     setPurchasing(false);
   };

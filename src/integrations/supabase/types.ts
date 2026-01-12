@@ -303,6 +303,15 @@ export type Database = {
         }
         Returns: boolean
       }
+      process_verified_purchase: {
+        Args: {
+          _amount_paid: number
+          _payment_reference?: string
+          _subject_id: string
+          _user_id: string
+        }
+        Returns: string
+      }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
