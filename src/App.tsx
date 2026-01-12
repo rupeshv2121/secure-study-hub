@@ -9,6 +9,7 @@ import Auth from "./pages/Auth";
 import Lectures from "./pages/Lectures";
 import Subjects from "./pages/Subjects";
 import MyPurchases from "./pages/MyPurchases";
+import Profile from "./pages/Profile";
 import Viewer from "./pages/Viewer";
 import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
@@ -28,6 +29,7 @@ const App = () => (
             <Route path="/lectures" element={<Lectures />} />
             <Route path="/subjects" element={<Subjects />} />
             <Route path="/my-purchases" element={<MyPurchases />} />
+            <Route path="/profile" element={<Profile />} />
             <Route path="/viewer/:id" element={<Viewer />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="*" element={<NotFound />} />
