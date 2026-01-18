@@ -20,7 +20,7 @@ interface AuthContextType {
   sendOtp: (email: string, type?: 'signup' | 'reset') => Promise<{ error: Error | null }>;
   verifyOtp: (email: string, token: string, type?: 'signup' | 'reset') => Promise<{ error: Error | null }>;
   resetPassword: (email: string) => Promise<{ error: Error | null }>;
-  updatePassword: (newPassword: string) => Promise<{ error: Error | null }>;
+  updatePasswordWithOtp: (email: string, token: string, newPassword: string) => Promise<{ error: Error | null }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -164,16 +164,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const resetPassword = async (email: string) => {
-    // Use resetPasswordForEmail which sends a magic link for password reset
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth?type=recovery`,
+    // Use signInWithOtp with type 'recovery' to send OTP instead of magic link
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        shouldCreateUser: false,
+      },
     });
 
     return { error: error ? new Error(error.message) : null };
   };
 
-  const updatePassword = async (newPassword: string) => {
-    // Update the password (user is already authenticated via recovery link)
+  const updatePasswordWithOtp = async (email: string, token: string, newPassword: string) => {
+    // First verify the OTP (using 'email' type since we sent via signInWithOtp)
+    const { error: verifyError } = await supabase.auth.verifyOtp({
+      email,
+      token,
+      type: 'email',
+    });
+
+    if (verifyError) {
+      return { error: new Error(verifyError.message) };
+    }
+
+    // Then update the password (user is now authenticated after verifyOtp)
     const { error: updateError } = await supabase.auth.updateUser({
       password: newPassword,
     });
@@ -200,7 +214,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         sendOtp,
         verifyOtp,
         resetPassword,
-        updatePassword,
+        updatePasswordWithOtp,
       }}
     >
       {children}
