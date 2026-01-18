@@ -31,7 +31,6 @@ const forgotPasswordSchema = z.object({
 });
 
 const resetPasswordSchema = z.object({
-  otp: z.string().length(6, 'OTP must be 6 digits'),
   newPassword: z.string().min(6, 'Password must be at least 6 characters'),
   confirmPassword: z.string().min(6, 'Password must be at least 6 characters'),
 }).refine((data) => data.newPassword === data.confirmPassword, {
@@ -52,22 +51,28 @@ const Auth = () => {
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const { signUp, signIn, user, sendOtp, verifyOtp, resetPassword, updatePasswordWithOtp } = useAuth();
+  const { signUp, signIn, user, session, sendOtp, verifyOtp, resetPassword, updatePassword } = useAuth();
   const navigate = useNavigate();
 
+  // Check for recovery session (user clicked password reset link)
   useEffect(() => {
-    if (user) {
+    const urlParams = new URLSearchParams(window.location.search);
+    const type = urlParams.get('type');
+    
+    // If this is a recovery redirect and user has a session, show reset form
+    if (type === 'recovery' && session) {
+      setShowResetPasswordForm(true);
+    } else if (user && !showResetPasswordForm) {
       navigate('/');
     }
-  }, [user, navigate]);
+  }, [user, session, navigate, showResetPasswordForm]);
 
   const validateForm = () => {
     if (showResetPasswordForm) {
-      const result = resetPasswordSchema.safeParse({ otp, newPassword, confirmPassword });
+      const result = resetPasswordSchema.safeParse({ newPassword, confirmPassword });
       if (!result.success) {
         const fieldErrors: Record<string, string> = {};
         result.error.errors.forEach((err) => {
@@ -142,19 +147,17 @@ const Auth = () => {
 
     try {
       if (showResetPasswordForm) {
-        // Verify OTP and update password
-        const { error } = await updatePasswordWithOtp(forgotPasswordEmail, otp, newPassword);
+        // User clicked magic link and has a recovery session, now update password
+        const { error } = await updatePassword(newPassword);
         if (error) {
           toast.error(error.message || 'Failed to reset password. Please try again.');
         } else {
           toast.success('Password reset successful! Please sign in with your new password.');
           setShowResetPasswordForm(false);
-          setShowForgotPassword(false);
-          setOtp('');
           setNewPassword('');
           setConfirmPassword('');
-          setForgotPasswordEmail('');
-          setIsSignUp(false);
+          // Clear the URL params
+          window.history.replaceState({}, '', '/auth');
         }
       } else if (showOtpVerification) {
         // Verify OTP for signup
@@ -166,7 +169,7 @@ const Auth = () => {
           navigate('/');
         }
       } else if (showForgotPassword) {
-        // Send forgot password OTP (magic link that contains a code)
+        // Send password reset magic link
         const { error } = await resetPassword(forgotPasswordEmail);
         if (error) {
           if (error.message.includes('User not found') || error.message.includes('no user')) {
@@ -175,10 +178,9 @@ const Auth = () => {
             toast.error(error.message || 'Failed to send reset email. Please try again.');
           }
         } else {
-          toast.success('Verification code sent to your email! Enter the 6-digit code to reset your password.');
+          toast.success('Password reset link sent to your email! Click the link to reset your password.');
           setShowForgotPassword(false);
-          setShowResetPasswordForm(true);
-          setOtpSent(true);
+          setForgotPasswordEmail('');
         }
       } else if (isSignUp) {
         // Create account first
@@ -219,10 +221,7 @@ const Auth = () => {
   const handleResendOtp = async () => {
     setIsLoading(true);
     try {
-      const targetEmail = showResetPasswordForm ? forgotPasswordEmail : email;
-      const { error } = showResetPasswordForm 
-        ? await resetPassword(forgotPasswordEmail)
-        : await sendOtp(email, 'signup');
+      const { error } = await sendOtp(email, 'signup');
       if (error) {
         toast.error(error.message || 'Failed to resend OTP.');
       } else {
@@ -265,9 +264,9 @@ const Auth = () => {
             </CardTitle>
             <CardDescription>
               {showResetPasswordForm
-                ? 'Enter the OTP and your new password'
+                ? 'Enter your new password below'
                 : showForgotPassword
-                  ? 'Enter your email to receive a reset code'
+                  ? 'Enter your email to receive a reset link'
                   : showOtpVerification
                     ? 'Check your inbox for the verification code'
                     : isSignUp
@@ -282,27 +281,8 @@ const Auth = () => {
                 <div className="text-center mb-4">
                   <KeyRound className="w-12 h-12 text-primary mx-auto mb-2" />
                   <p className="text-sm text-muted-foreground">
-                    Enter the 6-digit code sent to <strong>{forgotPasswordEmail}</strong>
+                    Create a new password for your account
                   </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="resetOtp">OTP Code</Label>
-                  <div className="relative">
-                    <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      id="resetOtp"
-                      type="text"
-                      placeholder="000000"
-                      value={otp}
-                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                      className="pl-10 text-center text-2xl tracking-widest font-mono"
-                      maxLength={6}
-                    />
-                  </div>
-                  {errors.otp && (
-                    <p className="text-sm text-destructive">{errors.otp}</p>
-                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -346,7 +326,7 @@ const Auth = () => {
                   variant="hero"
                   size="lg"
                   className="w-full"
-                  disabled={isLoading || otp.length !== 6}
+                  disabled={isLoading}
                 >
                   {isLoading ? (
                     <>
@@ -364,23 +344,13 @@ const Auth = () => {
                 <Button
                   type="button"
                   variant="ghost"
-                  className="w-full text-sm"
-                  onClick={handleResendOtp}
-                  disabled={isLoading}
-                >
-                  Didn't receive code? Resend OTP
-                </Button>
-
-                <Button
-                  type="button"
-                  variant="ghost"
                   className="w-full"
                   onClick={() => {
                     setShowResetPasswordForm(false);
-                    setOtp('');
                     setNewPassword('');
                     setConfirmPassword('');
                     setErrors({});
+                    window.history.replaceState({}, '', '/auth');
                   }}
                 >
                   Back to Sign In
@@ -416,11 +386,11 @@ const Auth = () => {
                   {isLoading ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Sending OTP...
+                      Sending reset link...
                     </>
                   ) : (
                     <>
-                      Send OTP
+                      Send Reset Link
                       <ArrowRight className="w-4 h-4" />
                     </>
                   )}
@@ -504,7 +474,6 @@ const Auth = () => {
                   onClick={() => {
                     setShowOtpVerification(false);
                     setOtp('');
-                    setOtpSent(false);
                     setErrors({});
                   }}
                 >
