@@ -1,13 +1,13 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
+import BackButton from '@/components/BackButton';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import BackButton from '@/components/BackButton';
+import { useAuth } from '@/contexts/AuthContext';
+import { ArrowRight, BookOpen, KeyRound, Loader2, Lock, Mail, Phone, User } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { BookOpen, Mail, Lock, User, ArrowRight, Loader2, Phone, KeyRound } from 'lucide-react';
 import { z } from 'zod';
 
 const signUpSchema = z.object({
@@ -373,7 +373,7 @@ const Auth = () => {
 
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant="hero"
                   className="w-full"
                   onClick={() => {
                     setShowResetPasswordForm(false);
@@ -499,7 +499,7 @@ const Auth = () => {
 
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant="hero"
                   className="w-full"
                   onClick={() => {
                     setShowOtpVerification(false);

@@ -98,7 +98,7 @@ const Index = () => {
         // Landing page for unauthenticated users
         <main className="overflow-hidden">
           {/* Hero Section */}
-          <section className="container mx-auto px-4 py-20 md:py-32">
+          <section className="container mx-auto px-4 py-16 md:py-20">
             <div className="max-w-5xl mx-auto text-center">
               <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl gradient-primary shadow-glow mb-8 animate-scale-in hover:scale-110 transition-transform">
                 <BookOpen className="w-10 h-10 text-primary-foreground" />

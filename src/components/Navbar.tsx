@@ -65,15 +65,10 @@ const Navbar = () => {
                     </span>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                    {user.email}
-                  </div>
-                  <DropdownMenuSeparator />
-                  
+                <DropdownMenuContent align="end" className="w-48">                  
                   {isAdmin && (
                     <>
-                      <DropdownMenuItem onClick={() => navigate('/admin')}>
+                      <DropdownMenuItem  onClick={() => navigate('/admin')}>
                         <Shield className="w-4 h-4 mr-2" />
                         Admin Dashboard
                       </DropdownMenuItem>
@@ -99,7 +94,7 @@ const Navbar = () => {
               </DropdownMenu>
             ) : (
               <div className="flex items-center gap-2">
-                <Button variant="ghost" size="sm" onClick={() => navigate('/auth')}>
+                <Button className='bg-[#efefef] text-black hover:bg-slate-100' size="sm" onClick={() => navigate('/auth')}>
                   Sign In
                 </Button>
                 <Button variant="hero" size="sm" onClick={() => navigate('/auth')}>

@@ -1,7 +1,7 @@
-import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { BookOpen, Lock, IndianRupee, Check } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { BookOpen, Check, IndianRupee, Lock } from 'lucide-react';
 
 interface SubjectCardProps {
   id: string;
@@ -72,7 +72,7 @@ const SubjectCard = ({
             <div className="mt-4">
               {isPurchased ? (
                 <Button
-                  variant="outline"
+                  variant="hero"
                   className="w-full gap-2"
                   onClick={() => onView(id)}
                 >

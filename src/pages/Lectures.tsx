@@ -1,15 +1,14 @@
-import { useEffect, useState } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
-import Navbar from '@/components/Navbar';
+import BackButton from '@/components/BackButton';
 import LectureCard from '@/components/LectureCard';
+import Navbar from '@/components/Navbar';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Button } from '@/components/ui/button';
-import BackButton from '@/components/BackButton';
-import { Search, Loader2 } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 import { useSubjectAccess } from '@/hooks/useSubjectAccess';
+import { supabase } from '@/integrations/supabase/client';
+import { Loader2, Search } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 interface Lecture {
   id: string;
