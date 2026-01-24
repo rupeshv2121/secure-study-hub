@@ -174,4 +174,4 @@ This project is proprietary software. All rights reserved.
 
 ---
 
-Built with ❤️ using [Lovable](https://lovable.dev)
+Built with ❤️ using Rupesh
