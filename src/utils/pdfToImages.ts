@@ -8,8 +8,8 @@ export const MAX_PDF_PAGES = 200;
 
 // Dynamically load PDF.js from CDN with Subresource Integrity (SRI) verification
 const PDFJS_VERSION = '3.11.174';
-const PDFJS_SRI = 'sha512-shD8t+M2bMch8MCS6QQYpoYjPRYuQUw8XfUbXVNqJxxycaqQ+bzj1uw3y3+laTfvk/lzaQYO+W86xKxKKAfjPg==';
-const PDFJS_WORKER_SRI = 'sha512-Eq0Tzoy5kfQ/zwo7epfTBzPlt9Hmpx/I+JpLwAj+CMfXGsbCxA9C+yY0nQ8FlIa8sUjvBHikb6ZRtCQEYn4QyA==';
+const PDFJS_SRI = 'sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e';
+const PDFJS_WORKER_SRI = 'sha384-SnzOobpRMLXZ52iJvZm/C0fYw0OQemTXzTjIsdsfMcrCtCEe9qgzxTd3RSklO5x2';
 
 const loadPdfJs = async () => {
   if ((window as any).pdfjsLib) {
