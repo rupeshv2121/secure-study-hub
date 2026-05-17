@@ -6,7 +6,11 @@ export interface ConvertedPage {
 // Maximum pages to convert - browser memory limitation
 export const MAX_PDF_PAGES = 200;
 
-// Dynamically load PDF.js from CDN to avoid build issues
+// Dynamically load PDF.js from CDN with Subresource Integrity (SRI) verification
+const PDFJS_VERSION = '3.11.174';
+const PDFJS_SRI = 'sha512-shD8t+M2bMch8MCS6QQYpoYjPRYuQUw8XfUbXVNqJxxycaqQ+bzj1uw3y3+laTfvk/lzaQYO+W86xKxKKAfjPg==';
+const PDFJS_WORKER_SRI = 'sha512-Eq0Tzoy5kfQ/zwo7epfTBzPlt9Hmpx/I+JpLwAj+CMfXGsbCxA9C+yY0nQ8FlIa8sUjvBHikb6ZRtCQEYn4QyA==';
+
 const loadPdfJs = async () => {
   if ((window as any).pdfjsLib) {
     return (window as any).pdfjsLib;
@@ -14,11 +18,13 @@ const loadPdfJs = async () => {
 
   return new Promise((resolve, reject) => {
     const script = document.createElement('script');
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    script.src = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}/pdf.min.js`;
+    script.integrity = PDFJS_SRI;
+    script.crossOrigin = 'anonymous';
     script.onload = () => {
       const pdfjsLib = (window as any).pdfjsLib;
-      pdfjsLib.GlobalWorkerOptions.workerSrc = 
-        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}/pdf.worker.min.js`;
       resolve(pdfjsLib);
     };
     script.onerror = reject;
