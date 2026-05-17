@@ -68,22 +68,8 @@ const Viewer = () => {
 
   const logView = async () => {
     if (user && id) {
-      // Log view to view_logs table
       await supabase.from('view_logs').insert({ lecture_id: id, user_id: user.id });
-      
-      // Increment view_count in lectures table
-      const { data: lecture } = await supabase
-        .from('lectures')
-        .select('view_count')
-        .eq('id', id)
-        .single();
-      
-      if (lecture) {
-        await supabase
-          .from('lectures')
-          .update({ view_count: (lecture.view_count || 0) + 1 })
-          .eq('id', id);
-      }
+      await supabase.rpc('increment_view_count', { lecture_uuid: id });
     }
   };
 

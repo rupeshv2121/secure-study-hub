@@ -303,6 +303,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      increment_view_count: {
+        Args: { lecture_uuid: string }
+        Returns: undefined
+      }
       process_verified_purchase: {
         Args: {
           _amount_paid: number
