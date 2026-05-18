@@ -1,29 +1,17 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, Session } from '@supabase/supabase-js';
+import { getMe as apiGetMe, login as apiLogin, register as apiRegister } from '@/api/auth';
 import { supabase } from '@/integrations/supabase/client';
-
-interface Profile {
-  id: string;
-  email: string;
-  full_name: string | null;
-}
-
-interface AuthContextType {
-  user: User | null;
-  session: Session | null;
-  profile: Profile | null;
-  isAdmin: boolean;
-  loading: boolean;
-  signUp: (email: string, password: string, fullName: string, phoneNumber?: string) => Promise<{ error: Error | null }>;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signOut: () => Promise<void>;
-  sendOtp: (email: string, type?: 'signup' | 'reset') => Promise<{ error: Error | null }>;
-  verifyOtp: (email: string, token: string, type?: 'signup' | 'reset') => Promise<{ error: Error | null }>;
-  resetPassword: (email: string) => Promise<{ error: Error | null }>;
-  updatePasswordWithOtp: (email: string, token: string, newPassword: string) => Promise<{ error: Error | null }>;
-}
+import type { AuthContextType, Profile, Session, User } from '@/interfaces/auth';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+const toOtpFriendlyError = (message: string): Error => {
+  if (message.toLowerCase().includes('magic link')) {
+    return new Error('Failed to send OTP. Please try again in a moment.');
+  }
+
+  return new Error(message);
+};
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -32,172 +20,212 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const fetchProfile = async (userId: string) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id, email, full_name')
-      .eq('id', userId)
-      .single();
-
-    if (!error && data) {
-      setProfile(data as Profile);
+  const fetchProfile = async () => {
+    try {
+      const { ok, body } = await apiGetMe();
+      const u = body?.user ?? body?.data?.user ?? null;
+      if (ok && u) {
+        setProfile({ id: u.id, email: u.email, full_name: u.name ?? null });
+        setUser({ id: u.id, email: u.email, name: u.name, role: u.role });
+        setSession({ user: u, token: (body?.data?.token) || null } as any);
+        setIsAdmin((u as any).role === 'ADMIN');
+      }
+    } catch (e) {
+      // ignore
     }
-  };
-
-  const fetchAdminRole = async (userId: string) => {
-    const { data } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', userId)
-      .eq('role', 'admin')
-      .maybeSingle();
-
-    setIsAdmin(!!data);
   };
 
   useEffect(() => {
     let mounted = true;
-    
-    // Set up auth state listener first
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        if (!mounted) return;
-        
-        setSession(session);
-        setUser(session?.user ?? null);
-
-        if (session?.user) {
-          // Defer profile and role fetch to avoid deadlock
-          setTimeout(() => {
-            if (mounted) {
-              fetchProfile(session.user.id);
-              fetchAdminRole(session.user.id);
-            }
-          }, 0);
-        } else {
-          setProfile(null);
-          setIsAdmin(false);
+    const init = async () => {
+      try {
+        const token = localStorage.getItem('auth_token');
+        if (token) {
+          await fetchProfile();
         }
-
-        setLoading(false);
+      } catch (e) {
+        console.error('Failed to restore session', e);
+      } finally {
+        if (mounted) setLoading(false);
       }
-    );
-
-    // Then check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!mounted) return;
-      
-      setSession(session);
-      setUser(session?.user ?? null);
-
-      if (session?.user) {
-        fetchProfile(session.user.id);
-        fetchAdminRole(session.user.id);
-      }
-
-      setLoading(false);
-    }).catch((error) => {
-      console.error('Failed to get session:', error);
-      if (mounted) setLoading(false);
-    });
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
     };
+
+    init();
+    return () => { mounted = false; };
   }, []);
 
   const signUp = async (email: string, password: string, fullName: string, phoneNumber?: string) => {
-    // Store signup data temporarily for later use after OTP verification
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth`,
-        data: {
-          full_name: fullName,
-          phone_number: phoneNumber || null,
-        },
-      },
-    });
+    try {
+      // Use Supabase OTP to send verification code for signup. We'll defer creating
+      // the backend user and issuing a JWT until the OTP is verified.
+      // Clear any existing token to avoid accidental auto-login
+      localStorage.removeItem('auth_token');
 
-    return { error: error ? new Error(error.message) : null };
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: { shouldCreateUser: true },
+      } as any);
+
+      if (error) return { error: toOtpFriendlyError((error as any).message) };
+
+      // Store pending signup details so verify step can complete registration
+      localStorage.setItem('pending_signup', JSON.stringify({ email, password, fullName, phoneNumber }));
+      return { error: null };
+    } catch (e: any) {
+      return { error: new Error(e?.message || 'Registration failed') };
+    }
   };
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    return { error };
+    try {
+      const { ok, body } = await apiLogin({ email, password });
+      if (!ok) return { error: new Error(body?.message || 'Login failed') };
+      const token = body?.data?.token || body?.token || null;
+      const u = body?.data?.user || body?.user || null;
+      if (token && u) {
+        localStorage.setItem('auth_token', token);
+        setUser({ id: u.id, email: u.email, name: u.name, role: u.role });
+        setProfile({ id: u.id, email: u.email, full_name: u.name ?? null });
+        setSession({ user: u, token } as any);
+        setIsAdmin((u as any).role === 'ADMIN');
+      }
+      return { error: null };
+    } catch (e: any) {
+      return { error: e };
+    }
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    localStorage.removeItem('auth_token');
     setUser(null);
     setSession(null);
     setProfile(null);
     setIsAdmin(false);
   };
 
-  const sendOtp = async (email: string, type: 'signup' | 'reset' = 'signup') => {
+  const sendOtp = async (email?: string, type: 'signup' | 'reset' = 'signup') => {
+    if (!email) return { error: new Error('Email is required') };
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
         shouldCreateUser: type === 'signup',
-        emailRedirectTo: `${window.location.origin}/auth`,
       },
-    });
+    } as any);
 
-    return { error: error ? new Error(error.message) : null };
+    return { error: error ? toOtpFriendlyError((error as any).message) : null };
   };
 
-  const verifyOtp = async (email: string, token: string, type: 'signup' | 'reset' = 'signup') => {
-    const { error } = await supabase.auth.verifyOtp({
+  const verifyOtp = async (email: string, token: string, type: 'signup' | 'reset' = 'signup', newPassword?: string) => {
+    const { error: verifyError } = await supabase.auth.verifyOtp({
       email,
       token,
       type: type === 'signup' ? 'email' : 'recovery',
-    });
+    } as any);
 
-    return { error: error ? new Error(error.message) : null };
+    if (verifyError) {
+      return { error: new Error((verifyError as any).message) };
+    }
+
+    if (type === 'signup') {
+      // For signup, set the user's password (Supabase requires this step), then
+      // create the backend user and obtain a JWT so the frontend can be logged in.
+      const pending = localStorage.getItem('pending_signup');
+      const pendingData = pending ? JSON.parse(pending) : null;
+      const pw = newPassword ?? pendingData?.password;
+      if (!pw) return { error: new Error('Password is required to complete signup.') };
+
+      const { error: updateError } = await supabase.auth.updateUser({ password: pw } as any);
+      if (updateError) {
+        return { error: new Error((updateError as any).message) };
+      }
+
+      // Now create or sync the backend user and sign in to get a token
+      try {
+        // If backend has a dedicated register endpoint that expects password,
+        // use it; otherwise use the /auth/sync route which creates user from Supabase.
+        // Prefer register to get a JWT immediately.
+        let token: string | null = null;
+        let userObj: any = null;
+
+        if (pendingData) {
+          const { email: pEmail, fullName, phoneNumber } = pendingData;
+          const { ok, body } = await apiRegister({ name: fullName, email: pEmail, password: pw, phoneNumber });
+          if (ok) {
+            token = body?.data?.token || body?.token || null;
+            userObj = body?.data?.user || body?.user || null;
+          }
+        }
+
+        // Fallback: call sync endpoint then login
+        if (!token) {
+          try {
+            await fetch('/api/auth/sync', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email }),
+            });
+          } catch (e) {
+            // ignore
+          }
+
+          // Attempt login to get token
+          const { ok: okLogin, body: loginBody } = await apiLogin({ email, password: pw });
+          if (okLogin) {
+            token = loginBody?.data?.token || loginBody?.token || null;
+            userObj = loginBody?.data?.user || loginBody?.user || null;
+          }
+        }
+
+        if (token && userObj) {
+          localStorage.removeItem('pending_signup');
+          localStorage.setItem('auth_token', token);
+          setUser({ id: userObj.id, email: userObj.email, name: userObj.name, role: userObj.role });
+          setProfile({ id: userObj.id, email: userObj.email, full_name: userObj.name ?? null });
+          setSession({ user: userObj, token } as any);
+          setIsAdmin((userObj as any).role === 'ADMIN');
+        }
+      } catch (e: any) {
+        return { error: new Error(e?.message || 'Failed to finalize signup') };
+      }
+    }
+
+    return { error: null };
   };
 
-  const resetPassword = async (email: string) => {
-    // Use signInWithOtp with type 'recovery' to send OTP instead of magic link
+  const resetPassword = async (email?: string) => {
+    if (!email) return { error: new Error('Email is required') };
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
         shouldCreateUser: false,
       },
-    });
+    } as any);
 
-    return { error: error ? new Error(error.message) : null };
+    return { error: error ? toOtpFriendlyError((error as any).message) : null };
   };
 
   const updatePasswordWithOtp = async (email: string, token: string, newPassword: string) => {
-    // First verify the OTP (using 'email' type since we sent via signInWithOtp)
     const { error: verifyError } = await supabase.auth.verifyOtp({
       email,
       token,
-      type: 'email',
-    });
+      type: 'recovery',
+    } as any);
 
     if (verifyError) {
-      return { error: new Error(verifyError.message) };
+      return { error: new Error((verifyError as any).message) };
     }
 
     // Then update the password (user is now authenticated after verifyOtp)
     const { error: updateError } = await supabase.auth.updateUser({
       password: newPassword,
-    });
+    } as any);
 
     // Sign out after password update so user can sign in with new password
     if (!updateError) {
       await supabase.auth.signOut();
     }
 
-    return { error: updateError ? new Error(updateError.message) : null };
+    return { error: updateError ? new Error((updateError as any).message) : null };
   };
 
   return (

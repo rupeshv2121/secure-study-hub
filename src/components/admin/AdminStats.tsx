@@ -1,15 +1,9 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import apiFetch from '@/api/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Users, FileText, FolderOpen, Eye } from 'lucide-react';
+import { Eye, FileText, FolderOpen, Users } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
-interface Stats {
-  totalUsers: number;
-  totalLectures: number;
-  totalCategories: number;
-  totalViews: number;
-  recentViews: { lecture_title: string; user_email: string; viewed_at: string }[];
-}
+import type { AdminStats as Stats } from '@/interfaces/admin';
 
 const AdminStats = () => {
   const [stats, setStats] = useState<Stats>({
@@ -24,85 +18,25 @@ const AdminStats = () => {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        // Fetch counts - use select with count
-        const [usersRes, lecturesRes, categoriesRes, viewsRes] = await Promise.all([
-          supabase.from('profiles').select('id', { count: 'exact', head: true }),
-          supabase.from('lectures').select('id', { count: 'exact', head: true }),
-          supabase.from('categories').select('id', { count: 'exact', head: true }),
-          supabase.from('view_logs').select('id', { count: 'exact', head: true }),
-        ]);
-
-        // Also get total views from lectures table (sum of view_count) - this is more accurate
-        const { data: lecturesData } = await supabase
-          .from('lectures')
-          .select('view_count');
-
-        const totalViewsFromLectures = lecturesData?.reduce((sum, lec) => sum + (lec.view_count || 0), 0) || 0;
-        const totalViewsFromLogs = viewsRes.count || 0;
-        // Use logs count (actual view events) or lectures view_count (whichever is higher)
-        const finalViewCount = Math.max(totalViewsFromLogs, totalViewsFromLectures);
-
-        // Fetch recent views - get lecture titles
-        const { data: recentViewsData } = await supabase
-          .from('view_logs')
-          .select(`
-            viewed_at,
-            lecture_id,
-            user_id,
-            lectures(title)
-          `)
-          .order('viewed_at', { ascending: false })
-          .limit(10);
-
-        // Fetch user emails for recent views
-        const recentViewsWithEmails = await Promise.all(
-          (recentViewsData || []).map(async (v: any) => {
-            const { data: profile } = await supabase
-              .from('profiles')
-              .select('email')
-              .eq('id', v.user_id)
-              .single();
-            
-            return {
-              lecture_title: v.lectures?.title || 'Unknown',
-              user_email: profile?.email || 'Unknown',
-              viewed_at: v.viewed_at,
-            };
-          })
-        );
-
+        const [lecturesRes, categoriesRes] = await Promise.all([apiFetch('/lectures'), apiFetch('/categories')]);
+        const lbody = await lecturesRes.json();
+        const cbody = await categoriesRes.json();
+        const lectures = lbody?.data || [];
+        const categories = cbody?.data || [];
+        const totalViews = lectures.reduce((sum: number, l: any) => sum + (l.viewCount ?? l.view_count ?? 0), 0);
         setStats({
-          totalUsers: usersRes.count || 0,
-          totalLectures: lecturesRes.count || 0,
-          totalCategories: categoriesRes.count || 0,
-          totalViews: finalViewCount,
-          recentViews: recentViewsWithEmails,
-        });
-      } catch (error) {
-        console.error('Error fetching stats:', error);
-        // Fallback: simpler queries without joins
-        const [usersRes, lecturesRes, categoriesRes] = await Promise.all([
-          supabase.from('profiles').select('id', { count: 'exact', head: true }),
-          supabase.from('lectures').select('id', { count: 'exact', head: true }),
-          supabase.from('categories').select('id', { count: 'exact', head: true }),
-        ]);
-
-        // Get view count from lectures table
-        const { data: lecturesWithViews } = await supabase
-          .from('lectures')
-          .select('view_count');
-
-        const totalViews = lecturesWithViews?.reduce((sum, lec) => sum + (lec.view_count || 0), 0) || 0;
-
-        setStats({
-          totalUsers: usersRes.count || 0,
-          totalLectures: lecturesRes.count || 0,
-          totalCategories: categoriesRes.count || 0,
-          totalViews: totalViews,
+          totalUsers: 0,
+          totalLectures: lectures.length,
+          totalCategories: categories.length,
+          totalViews,
           recentViews: [],
         });
+      } catch (e) {
+        console.error('Error fetching stats:', e);
+        setStats((s) => ({ ...s, recentViews: [] }));
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     fetchStats();

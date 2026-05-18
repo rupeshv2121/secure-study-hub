@@ -1,20 +1,9 @@
-import { Link } from 'react-router-dom';
-import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { FileText, Eye, Calendar, Lock, Sparkles } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import type { LectureCardProps } from '@/interfaces/components';
 import { format } from 'date-fns';
-
-interface LectureCardProps {
-  id: string;
-  title: string;
-  description: string | null;
-  categoryName: string;
-  categoryColor: string | null;
-  viewCount: number;
-  createdAt: string;
-  isLocked?: boolean;
-  isFreePreview?: boolean;
-}
+import { Calendar, Eye, FileText, Lock, Sparkles } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 const LectureCard = ({
   id,

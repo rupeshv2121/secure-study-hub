@@ -1,14 +1,10 @@
-import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Shield, AlertTriangle, Lock, Maximize, Minimize } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 import { useSecurityProtection } from '@/hooks/useSecurityProtection';
-
-interface SecureViewerProps {
-  lectureId: string;
-  slides: { id: string; slide_number: number; storage_path: string }[];
-}
+import type { SecureViewerProps } from '@/interfaces/secureviewer';
+import { AlertTriangle, ChevronLeft, ChevronRight, Lock, Maximize, Minimize, Shield, ZoomIn, ZoomOut } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
 const SecureViewer = ({ lectureId, slides }: SecureViewerProps) => {
   const { user } = useAuth();
@@ -44,17 +40,15 @@ const SecureViewer = ({ lectureId, slides }: SecureViewerProps) => {
 
   // Generate signed URLs for slides with short expiry
   const getSignedUrl = useCallback(async (storagePath: string, slideIndex: number) => {
-    const { data, error } = await supabase.storage
-      .from('lecture-slides')
-      .createSignedUrl(storagePath, 30); // 30 second expiry for security
-
-    if (error) {
-      console.error('Error getting signed URL:', error);
+    // Backend serves uploads under /uploads/:bucket/:file
+    try {
+      const signedUrl = `${API_BASE}/uploads/${storagePath}`;
+      setSlideUrls((prev) => ({ ...prev, [slideIndex]: signedUrl }));
+      return signedUrl;
+    } catch (e) {
+      console.error('Error building slide URL:', e);
       return null;
     }
-
-    setSlideUrls((prev) => ({ ...prev, [slideIndex]: data.signedUrl }));
-    return data.signedUrl;
   }, []);
 
   // Render slide to canvas (prevents direct image access)

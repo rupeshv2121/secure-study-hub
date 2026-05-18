@@ -1,3 +1,4 @@
+import apiFetch from '@/api/client';
 import Navbar from '@/components/Navbar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -5,7 +6,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
 import { ArrowLeft, Loader2, Mail, Phone, Save, User } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -46,27 +46,16 @@ const Profile = () => {
 
     setIsUpdating(true);
     try {
-      // Update profile in database
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({
-          full_name: fullName,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', user.id);
-
-      if (profileError) throw profileError;
-
-      // Update user metadata
-      const { error: metaError } = await supabase.auth.updateUser({
-        data: {
-          full_name: fullName,
-          phone_number: phoneNumber,
-        },
+      // Update user name via backend
+      const res = await apiFetch('/me', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: fullName }),
       });
+      const body = await res.json();
+      if (!body?.success) throw new Error(body?.message || 'Failed to update profile');
 
-      if (metaError) throw metaError;
-
+      // Note: phone number is stored in Auth provider metadata (Supabase) and is not handled by backend currently.
       toast.success('Profile updated successfully!');
     } catch (error: any) {
       toast.error(error.message || 'Failed to update profile');
@@ -90,11 +79,13 @@ const Profile = () => {
 
     setIsChangingPassword(true);
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword,
+      const res = await apiFetch('/me', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: newPassword }),
       });
-
-      if (error) throw error;
+      const body = await res.json();
+      if (!body?.success) throw new Error(body?.message || 'Failed to change password');
 
       toast.success('Password changed successfully!');
       setCurrentPassword('');

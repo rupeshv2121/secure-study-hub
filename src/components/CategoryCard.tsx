@@ -1,15 +1,7 @@
 import { Card, CardContent } from '@/components/ui/card';
+import type { CategoryCardProps } from '@/interfaces/components';
 import { BookOpen, Brain, Briefcase, Code, GraduationCap, LucideIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
-
-interface CategoryCardProps {
-  id: string;
-  name: string;
-  description: string | null;
-  icon: string | null;
-  color: string | null;
-  subject_count?: number;
-}
 
 const iconMap: Record<string, LucideIcon> = {
   GraduationCap,

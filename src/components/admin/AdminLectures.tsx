@@ -1,3 +1,4 @@
+import apiFetch from '@/api/client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,7 +20,6 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { supabase } from '@/integrations/supabase/client';
 import { convertPdfToImages, getPdfPageCount, MAX_PDF_PAGES } from '@/utils/pdfToImages';
 import {
   closestCenter,
@@ -42,37 +42,7 @@ import { AlertTriangle, Edit, Eye, EyeOff, File, FileText, GripVertical, Image, 
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
-interface Category {
-  id: string;
-  name: string;
-}
-
-interface Subject {
-  id: string;
-  name: string;
-  category_id: string;
-}
-
-interface Lecture {
-  id: string;
-  title: string;
-  description: string | null;
-  category_id: string;
-  subject_id: string | null;
-  is_published: boolean;
-  is_free_preview: boolean;
-  view_count: number;
-  created_at: string;
-  sort_order: number;
-  categories?: Category;
-  subjects?: Subject;
-}
-
-interface LectureSlide {
-  id: string;
-  slide_number: number;
-  storage_path: string;
-}
+import type { Category, Lecture, LectureSlide, Subject } from '@/interfaces/admin';
 
 // Sortable Lecture Card Component
 const SortableLectureCard = ({ 
@@ -80,13 +50,17 @@ const SortableLectureCard = ({
   onEdit, 
   onDelete, 
   onUpload, 
-  onTogglePublish 
+  onTogglePublish,
+  categories,
+  subjects,
 }: { 
   lecture: Lecture;
   onEdit: () => void;
   onDelete: () => void;
   onUpload: () => void;
   onTogglePublish: () => void;
+  categories: Category[];
+  subjects: Subject[];
 }) => {
   const {
     attributes,
@@ -128,7 +102,13 @@ const SortableLectureCard = ({
                 </Badge>
               </div>
               <p className="text-sm text-muted-foreground">
-                {lecture.categories?.name} {lecture.subjects ? `• ${lecture.subjects.name}` : ''} • {lecture.view_count} views
+                {(() => {
+                  const cat = categories.find(c => c.id === lecture.category_id)?.name || '';
+                  const sub = subjects.find(s => s.id === lecture.subject_id)?.name || '';
+                  return (
+                    <>{cat} {sub ? `• ${sub}` : ''} • {lecture.view_count} views</>
+                  );
+                })()}
                 {lecture.is_free_preview && ' • Free Preview'}
               </p>
             </div>
@@ -216,67 +196,45 @@ const AdminLectures = () => {
   );
 
   const fetchData = async () => {
-    const [lecturesRes, categoriesRes, subjectsRes] = await Promise.all([
-      supabase
-        .from('lectures')
-        .select('id, title, description, category_id, subject_id, is_published, is_free_preview, view_count, created_at, sort_order, categories(id, name), subjects(id, name, category_id)')
-        .order('sort_order', { ascending: true }),
-      supabase
-        .from('categories')
-        .select('id, name')
-        .order('name'),
-      supabase
-        .from('subjects')
-        .select('id, name, category_id')
-        .eq('is_active', true)
-        .order('name'),
-    ]);
+    try {
+      const [lecturesRes, categoriesRes, subjectsRes] = await Promise.all([
+        apiFetch('/lectures'),
+        apiFetch('/categories'),
+        apiFetch('/subjects'),
+      ]);
 
-    if (lecturesRes.error) {
-      toast.error('Failed to load lectures');
-    } else {
-      // Fetch view counts from view_logs for each lecture
-      const lectureIds = (lecturesRes.data || []).map(l => l.id);
-      
-      // Count views per lecture from view_logs
-      const viewCounts = new Map<string, number>();
-      if (lectureIds.length > 0) {
-        const { data: viewLogs } = await supabase
-          .from('view_logs')
-          .select('lecture_id')
-          .in('lecture_id', lectureIds);
-        
-        if (viewLogs) {
-          viewLogs.forEach((log) => {
-            const count = viewCounts.get(log.lecture_id) || 0;
-            viewCounts.set(log.lecture_id, count + 1);
-          });
-        }
-      }
+      const lbody = await lecturesRes.json();
+      const cbody = await categoriesRes.json();
+      const sbody = await subjectsRes.json();
 
-      // Update lectures with accurate view counts (use view_logs count or lecture.view_count, whichever is higher)
-      const lecturesWithAccurateViews = (lecturesRes.data || []).map((lecture) => {
-        const logsCount = viewCounts.get(lecture.id) || 0;
-        const lectureViewCount = lecture.view_count || 0;
-        // Use the higher value to ensure accuracy (view_logs is the source of truth)
-        return {
-          ...lecture,
-          view_count: Math.max(logsCount, lectureViewCount),
-        };
-      });
+      const rawLectures = lbody?.data || [];
+      const cats = cbody?.data || [];
+      const subs = sbody?.data || [];
 
-      setLectures(lecturesWithAccurateViews);
+      // Normalize backend camelCase to frontend expected snake_case fields
+      const mapped = rawLectures.map((l: any) => ({
+        id: l.id,
+        title: l.title,
+        description: l.description,
+        category_id: l.categoryId ?? l.category_id,
+        subject_id: l.subjectId ?? l.subject_id ?? null,
+        is_published: l.published ?? l.is_published ?? false,
+        is_free_preview: l.isFreePreview ?? l.is_free_preview ?? false,
+        view_count: l.viewCount ?? l.view_count ?? 0,
+        created_at: l.createdAt ?? l.created_at,
+        sort_order: l.order ?? l.sort_order ?? 0,
+      }));
+
+      setLectures(mapped);
+      setCategories(cats.map((c: any) => ({ ...c })));
+      // normalize subject.title -> name
+      setSubjects(subs.map((s: any) => ({ ...s, id: s.id, name: s.title || s.name, category_id: s.categoryId ?? s.category_id })));
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to load lectures data');
+    } finally {
+      setLoading(false);
     }
-
-    if (!categoriesRes.error) {
-      setCategories(categoriesRes.data || []);
-    }
-
-    if (!subjectsRes.error) {
-      setSubjects(subjectsRes.data || []);
-    }
-
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -314,98 +272,119 @@ const AdminLectures = () => {
     }
 
     if (editingLecture) {
-      const { error } = await supabase
-        .from('lectures')
-        .update({
+      try {
+        const payload: any = {
           title: formData.title,
-          description: formData.description || null,
-          category_id: formData.category_id,
-          subject_id: formData.subject_id || null,
-          is_published: formData.is_published,
-          is_free_preview: formData.is_free_preview,
-        })
-        .eq('id', editingLecture.id);
-
-      if (error) {
+          description: formData.description || undefined,
+          published: formData.is_published,
+          // backend expects subjectId; pass through if provided
+          subjectId: formData.subject_id || undefined,
+          order: editingLecture?.sort_order ?? undefined,
+        };
+        const res = await apiFetch(`/lectures/${editingLecture.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const body = await res.json();
+        if (!body?.success) {
+          toast.error('Failed to update lecture');
+        } else {
+          toast.success('Lecture updated');
+          setDialogOpen(false);
+          fetchData();
+        }
+      } catch (e) {
+        console.error(e);
         toast.error('Failed to update lecture');
-      } else {
-        toast.success('Lecture updated');
-        setDialogOpen(false);
-        fetchData();
       }
     } else {
       // Get max sort_order for this subject
-      const subjectId = formData.subject_id || null;
-      const { data: maxOrderData } = await supabase
-        .from('lectures')
-        .select('sort_order')
-        .eq('subject_id', subjectId)
-        .order('sort_order', { ascending: false })
-        .limit(1);
-      
-      const nextOrder = (maxOrderData?.[0]?.sort_order || 0) + 1;
-
-      const { error } = await supabase
-        .from('lectures')
-        .insert({
+      try {
+        // determine next order (use local max)
+        const currentMax = lectures.reduce((acc, l) => Math.max(acc, l.sort_order || 0), 0);
+        const nextOrder = currentMax + 1;
+        const payload: any = {
           title: formData.title,
-          description: formData.description || null,
-          category_id: formData.category_id,
-          subject_id: subjectId,
-          is_published: formData.is_published,
-          is_free_preview: formData.is_free_preview,
-          sort_order: nextOrder,
+          description: formData.description || undefined,
+          published: formData.is_published,
+          subjectId: formData.subject_id || undefined,
+          order: nextOrder,
+        };
+        const res = await apiFetch('/lectures', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
         });
-
-      if (error) {
+        const body = await res.json();
+        if (!body?.success) {
+          toast.error('Failed to create lecture');
+        } else {
+          toast.success('Lecture created');
+          setDialogOpen(false);
+          fetchData();
+        }
+      } catch (e) {
+        console.error(e);
         toast.error('Failed to create lecture');
-      } else {
-        toast.success('Lecture created');
-        setDialogOpen(false);
-        fetchData();
       }
     }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure? This will delete the lecture and all its slides.')) return;
+    try {
+      // fetch slides for lecture
+      const slidesRes = await apiFetch(`/lecture-slides?lectureId=${encodeURIComponent(id)}`);
+      const slidesBody = await slidesRes.json();
+      const slides = slidesBody?.data || [];
 
-    // First delete slides from storage
-    const { data: slides } = await supabase
-      .from('lecture_slides')
-      .select('storage_path')
-      .eq('lecture_id', id);
+      if (slides.length > 0) {
+        const paths = slides.map((s: any) => s.storagePath || s.storage_path);
+        // remove from storage
+        await apiFetch(`/storage/${encodeURIComponent('lecture-slides')}/remove`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ paths }),
+        });
+        // delete slide records
+        for (const s of slides) {
+          await apiFetch(`/lecture-slides/${s.id}`, { method: 'DELETE' });
+        }
+      }
 
-    if (slides && slides.length > 0) {
-      const paths = slides.map((s) => s.storage_path);
-      await supabase.storage.from('lecture-slides').remove(paths);
-    }
-
-    // Delete slide records
-    await supabase.from('lecture_slides').delete().eq('lecture_id', id);
-
-    // Delete lecture
-    const { error } = await supabase.from('lectures').delete().eq('id', id);
-
-    if (error) {
+      // delete lecture
+      const delRes = await apiFetch(`/lectures/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      const delBody = await delRes.json();
+      if (!delBody?.success) {
+        toast.error('Failed to delete lecture');
+      } else {
+        toast.success('Lecture deleted');
+        fetchData();
+      }
+    } catch (e) {
+      console.error(e);
       toast.error('Failed to delete lecture');
-    } else {
-      toast.success('Lecture deleted');
-      fetchData();
     }
   };
 
   const togglePublish = async (lecture: Lecture) => {
-    const { error } = await supabase
-      .from('lectures')
-      .update({ is_published: !lecture.is_published })
-      .eq('id', lecture.id);
-
-    if (error) {
+    try {
+      const res = await apiFetch(`/lectures/${encodeURIComponent(lecture.id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ published: !lecture.is_published }),
+      });
+      const body = await res.json();
+      if (!body?.success) {
+        toast.error('Failed to update lecture');
+      } else {
+        toast.success(lecture.is_published ? 'Lecture unpublished' : 'Lecture published');
+        fetchData();
+      }
+    } catch (e) {
+      console.error(e);
       toast.error('Failed to update lecture');
-    } else {
-      toast.success(lecture.is_published ? 'Lecture unpublished' : 'Lecture published');
-      fetchData();
     }
   };
 
@@ -415,13 +394,15 @@ const AdminLectures = () => {
     setPendingFiles(null);
     
     // Fetch existing slides
-    const { data } = await supabase
-      .from('lecture_slides')
-      .select('*')
-      .eq('lecture_id', lectureId)
-      .order('slide_number');
-    
-    setExistingSlides(data || []);
+    try {
+      const res = await apiFetch(`/lecture-slides?lectureId=${encodeURIComponent(lectureId)}`);
+      const body = await res.json();
+      const slides = (body?.data || []).map((s: any) => ({ id: s.id, slide_number: s.slideNumber ?? s.slide_number, storage_path: s.storagePath ?? s.storage_path }));
+      setExistingSlides(slides);
+    } catch (e) {
+      console.error(e);
+      setExistingSlides([]);
+    }
     setUploadDialogOpen(true);
   };
 
@@ -505,25 +486,36 @@ const AdminLectures = () => {
       
       const filePath = `${selectedLectureId}/${slideNumber}.png`;
 
-      const { error: uploadError } = await supabase.storage
-        .from('lecture-slides')
-        .upload(filePath, blob, { upsert: true, contentType: 'image/png' });
+      // upload to backend storage
+      try {
+        const form = new FormData();
+        // set original filename to include folder so server stores under that path
+        form.append('file', blob as any, filePath);
+        const upRes = await apiFetch(`/storage/${encodeURIComponent('lecture-slides')}/upload`, {
+          method: 'POST',
+          body: form as any,
+        } as any);
+        const upBody = await upRes.json();
+        if (!upBody?.success) {
+          toast.error(`Failed to upload ${name}`);
+          continue;
+        }
 
-      if (uploadError) {
-        toast.error(`Failed to upload ${name}`);
-        continue;
-      }
+        const storagePath = upBody.data?.path || filePath;
 
-      const { error: dbError } = await supabase
-        .from('lecture_slides')
-        .insert({
-          lecture_id: selectedLectureId,
-          slide_number: slideNumber,
-          storage_path: filePath,
+        // insert slide record
+        const dbRes = await apiFetch('/lecture-slides', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lectureId: selectedLectureId, slideNumber: slideNumber, storagePath }),
         });
-
-      if (dbError) {
-        toast.error(`Failed to save slide record for ${name}`);
+        const dbBody = await dbRes.json();
+        if (!dbBody?.success) {
+          toast.error(`Failed to save slide record for ${name}`);
+        }
+      } catch (e) {
+        console.error(e);
+        toast.error(`Failed to upload ${name}`);
       }
     }
 
@@ -533,21 +525,31 @@ const AdminLectures = () => {
     setPendingFiles(null);
     
     // Refresh slides list
-    const { data } = await supabase
-      .from('lecture_slides')
-      .select('*')
-      .eq('lecture_id', selectedLectureId)
-      .order('slide_number');
-    
-    setExistingSlides(data || []);
+    try {
+      const res = await apiFetch(`/lecture-slides?lectureId=${encodeURIComponent(selectedLectureId)}`);
+      const body = await res.json();
+      const slides = (body?.data || []).map((s: any) => ({ id: s.id, slide_number: s.slideNumber ?? s.slide_number, storage_path: s.storagePath ?? s.storage_path }));
+      setExistingSlides(slides);
+    } catch (e) {
+      console.error(e);
+      setExistingSlides([]);
+    }
   };
 
   const handleDeleteSlide = async (slide: LectureSlide) => {
-    await supabase.storage.from('lecture-slides').remove([slide.storage_path]);
-    await supabase.from('lecture_slides').delete().eq('id', slide.id);
-    
-    setExistingSlides((prev) => prev.filter((s) => s.id !== slide.id));
-    toast.success('Slide deleted');
+    try {
+      await apiFetch(`/storage/${encodeURIComponent('lecture-slides')}/remove`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paths: [slide.storage_path] }),
+      });
+      await apiFetch(`/lecture-slides/${encodeURIComponent(slide.id)}`, { method: 'DELETE' });
+      setExistingSlides((prev) => prev.filter((s) => s.id !== slide.id));
+      toast.success('Slide deleted');
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to delete slide');
+    }
   };
 
   // Get filtered lectures based on subject filter
@@ -671,6 +673,8 @@ const AdminLectures = () => {
                   onDelete={() => handleDelete(lecture.id)}
                   onUpload={() => handleOpenUploadDialog(lecture.id)}
                   onTogglePublish={() => togglePublish(lecture)}
+                  categories={categories}
+                  subjects={subjects}
                 />
               ))}
             </div>

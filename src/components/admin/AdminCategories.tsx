@@ -1,8 +1,5 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import apiFetch from '@/api/client';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
@@ -11,18 +8,14 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Edit, FolderOpen, Plus, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Plus, Edit, Trash2, FolderOpen } from 'lucide-react';
 
-interface Category {
-  id: string;
-  name: string;
-  description: string | null;
-  icon: string | null;
-  color: string | null;
-  created_at: string;
-}
+import type { Category } from '@/interfaces/admin';
 
 const ICON_OPTIONS = [
   'BookOpen', 'Code', 'Brain', 'Briefcase', 'GraduationCap', 
@@ -48,17 +41,16 @@ const AdminCategories = () => {
   });
 
   const fetchCategories = async () => {
-    const { data, error } = await supabase
-      .from('categories')
-      .select('*')
-      .order('name');
-
-    if (error) {
+    try {
+      const res = await apiFetch('/categories');
+      const body = await res.json();
+      setCategories(body?.data || []);
+    } catch (e) {
+      console.error(e);
       toast.error('Failed to load categories');
-    } else {
-      setCategories(data || []);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -94,56 +86,70 @@ const AdminCategories = () => {
     }
 
     if (editingCategory) {
-      const { error } = await supabase
-        .from('categories')
-        .update({
-          name: formData.name,
-          description: formData.description || null,
-          icon: formData.icon,
-          color: formData.color,
-        })
-        .eq('id', editingCategory.id);
-
-      if (error) {
+      try {
+        const res = await apiFetch(`/categories/${encodeURIComponent(editingCategory.id)}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: formData.name,
+            description: formData.description || undefined,
+            icon: formData.icon,
+            color: formData.color,
+          }),
+        });
+        const body = await res.json();
+        if (!body?.success) {
+          toast.error('Failed to update category');
+        } else {
+          toast.success('Category updated');
+          setDialogOpen(false);
+          fetchCategories();
+        }
+      } catch (e) {
+        console.error(e);
         toast.error('Failed to update category');
-      } else {
-        toast.success('Category updated');
-        setDialogOpen(false);
-        fetchCategories();
       }
     } else {
-      const { error } = await supabase
-        .from('categories')
-        .insert({
-          name: formData.name,
-          description: formData.description || null,
-          icon: formData.icon,
-          color: formData.color,
+      try {
+        const res = await apiFetch('/categories', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: formData.name,
+            description: formData.description || undefined,
+            icon: formData.icon,
+            color: formData.color,
+          }),
         });
-
-      if (error) {
+        const body = await res.json();
+        if (!body?.success) {
+          toast.error('Failed to create category');
+        } else {
+          toast.success('Category created');
+          setDialogOpen(false);
+          fetchCategories();
+        }
+      } catch (e) {
+        console.error(e);
         toast.error('Failed to create category');
-      } else {
-        toast.success('Category created');
-        setDialogOpen(false);
-        fetchCategories();
       }
     }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure? This will delete all lectures in this category.')) return;
-
-    const { error } = await supabase
-      .from('categories')
-      .delete()
-      .eq('id', id);
-
-    if (error) {
+    try {
+      const res = await apiFetch(`/categories/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      const body = await res.json();
+      if (!body?.success) {
+        toast.error('Failed to delete category');
+      } else {
+        toast.success('Category deleted');
+        fetchCategories();
+      }
+    } catch (e) {
+      console.error(e);
       toast.error('Failed to delete category');
-    } else {
-      toast.success('Category deleted');
-      fetchCategories();
     }
   };
 

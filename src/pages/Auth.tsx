@@ -1,3 +1,4 @@
+import apiFetch from '@/api/client';
 import BackButton from '@/components/BackButton';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,34 +11,38 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { z } from 'zod';
 
-const signUpSchema = z.object({
-  fullName: z.string().min(2, 'Name must be at least 2 characters').max(100),
-  email: z.string().email('Please enter a valid email'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
-  phoneNumber: z.string().optional().or(z.string().regex(/^\+?[1-9]\d{1,14}$/, 'Please enter a valid phone number with country code')),
-});
+const emailSchema = z.string().email({ message: 'Please enter a valid email address' });
 
 const signInSchema = z.object({
-  email: z.string().email('Please enter a valid email'),
-  password: z.string().min(1, 'Password is required'),
+  email: emailSchema,
+  password: z.string().min(6, { message: 'Password must be at least 6 characters' }),
+});
+
+const signUpSchema = z.object({
+  fullName: z.string().min(1, { message: 'Full name is required' }),
+  email: emailSchema,
+  password: z.string().min(6, { message: 'Password must be at least 6 characters' }),
+  phoneNumber: z.string().optional(),
 });
 
 const otpSchema = z.object({
-  otp: z.string().length(6, 'OTP must be 6 digits'),
+  otp: z.string().min(6, { message: 'OTP must be at least 6 digits' }).max(8, { message: 'OTP is too long' }),
 });
 
 const forgotPasswordSchema = z.object({
-  email: z.string().email('Please enter a valid email'),
+  email: emailSchema,
 });
 
-const resetPasswordSchema = z.object({
-  otp: z.string().length(6, 'OTP must be 6 digits'),
-  newPassword: z.string().min(6, 'Password must be at least 6 characters'),
-  confirmPassword: z.string().min(6, 'Password must be at least 6 characters'),
-}).refine((data) => data.newPassword === data.confirmPassword, {
-  message: "Passwords don't match",
-  path: ["confirmPassword"],
-});
+const resetPasswordSchema = z
+  .object({
+    otp: z.string().min(6, { message: 'OTP must be at least 6 digits' }),
+    newPassword: z.string().min(6, { message: 'Password must be at least 6 characters' }),
+    confirmPassword: z.string().min(6, { message: 'Confirm password is required' }),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: 'Passwords do not match',
+    path: ['confirmPassword'],
+  });
 
 const Auth = () => {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -52,7 +57,6 @@ const Auth = () => {
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -142,46 +146,60 @@ const Auth = () => {
 
     try {
       if (showResetPasswordForm) {
-        // Verify OTP and update password
         const { error } = await updatePasswordWithOtp(forgotPasswordEmail, otp, newPassword);
         if (error) {
           toast.error(error.message || 'Failed to reset password. Please try again.');
         } else {
           toast.success('Password reset successful! Please sign in with your new password.');
-          setShowResetPasswordForm(false);
-          setShowForgotPassword(false);
-          setOtp('');
           setNewPassword('');
           setConfirmPassword('');
-          setForgotPasswordEmail('');
+          setOtp('');
+          setShowForgotPassword(false);
+          setShowResetPasswordForm(false);
           setIsSignUp(false);
         }
       } else if (showOtpVerification) {
-        // Verify OTP for signup
-        const { error: verifyError } = await verifyOtp(email, otp, 'signup');
+        if (!password) {
+          toast.error('Signup session expired. Please sign up again to get a new OTP.');
+          setShowOtpVerification(false);
+          setIsSignUp(true);
+          return;
+        }
+
+        const { error: verifyError } = await verifyOtp(email, otp, 'signup', password);
         if (verifyError) {
           toast.error(verifyError.message || 'Invalid OTP. Please try again.');
         } else {
           toast.success('Email verified! Your account is now active.');
+          // Sync user to backend DB
+          try {
+            await apiFetch('/auth/sync', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email, name: fullName }),
+            });
+          } catch (e) {
+            console.warn('Failed to sync user to backend:', e);
+          }
+
+          setPassword('');
           navigate('/');
         }
       } else if (showForgotPassword) {
-        // Send forgot password OTP (magic link that contains a code)
         const { error } = await resetPassword(forgotPasswordEmail);
         if (error) {
           if (error.message.includes('User not found') || error.message.includes('no user')) {
             toast.error('No account found with this email address.');
           } else {
-            toast.error(error.message || 'Failed to send reset email. Please try again.');
+            toast.error(error.message || 'Failed to send reset OTP. Please try again.');
           }
         } else {
-          toast.success('Verification code sent to your email! Enter the 6-digit code to reset your password.');
+          toast.success('Verification code sent to your email! Enter the OTP to continue.');
           setShowForgotPassword(false);
           setShowResetPasswordForm(true);
-          setOtpSent(true);
+          setOtp('');
         }
       } else if (isSignUp) {
-        // Create account first
         const { error: signUpError } = await signUp(email, password, fullName, phoneNumber);
         if (signUpError) {
           if (signUpError.message.includes('already registered') || signUpError.message.includes('already exists')) {
@@ -190,8 +208,7 @@ const Auth = () => {
             toast.error(signUpError.message);
           }
         } else {
-          toast.success('Account created! Please check your email and click the verification link to activate your account.');
-          // Show OTP verification screen
+          toast.success('Account created! Enter the OTP sent to your email to activate your account.');
           setShowOtpVerification(true);
         }
       } else {
@@ -200,7 +217,7 @@ const Auth = () => {
           if (error.message.includes('Invalid login credentials')) {
             toast.error('Invalid email or password. Please try again.');
           } else if (error.message.includes('Email not confirmed')) {
-            toast.error('Please verify your email before signing in.');
+            toast.error('Please verify your email using the OTP sent to your inbox before signing in.');
           } else {
             toast.error(error.message);
           }
@@ -219,17 +236,16 @@ const Auth = () => {
   const handleResendOtp = async () => {
     setIsLoading(true);
     try {
-      const targetEmail = showResetPasswordForm ? forgotPasswordEmail : email;
       const { error } = showResetPasswordForm 
         ? await resetPassword(forgotPasswordEmail)
         : await sendOtp(email, 'signup');
       if (error) {
-        toast.error(error.message || 'Failed to resend OTP.');
+        toast.error(error.message || 'Failed to resend the email.');
       } else {
-        toast.success('OTP resent successfully!');
+        toast.success(showResetPasswordForm ? 'Verification code resent successfully!' : 'Verification code resent successfully!');
       }
     } catch (error) {
-      toast.error('Failed to resend OTP. Please try again.');
+      toast.error('Failed to resend the email. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -253,7 +269,7 @@ const Auth = () => {
         <Card className="shadow-medium animate-slide-up border-border/50">
           <CardHeader className="text-center pb-4">
             <CardTitle className="text-xl">
-              {showResetPasswordForm 
+              {showResetPasswordForm
                 ? 'Reset your password'
                 : showForgotPassword 
                   ? 'Forgot password?'
@@ -282,7 +298,7 @@ const Auth = () => {
                 <div className="text-center mb-4">
                   <KeyRound className="w-12 h-12 text-primary mx-auto mb-2" />
                   <p className="text-sm text-muted-foreground">
-                    Enter the 6-digit code sent to <strong>{forgotPasswordEmail}</strong>
+                    Enter the OTP code sent to <strong>{forgotPasswordEmail}</strong>
                   </p>
                 </div>
 
@@ -293,11 +309,11 @@ const Auth = () => {
                     <Input
                       id="resetOtp"
                       type="text"
-                      placeholder="000000"
+                      placeholder="Enter OTP"
                       value={otp}
-                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 8))}
                       className="pl-10 text-center text-2xl tracking-widest font-mono"
-                      maxLength={6}
+                      maxLength={8}
                     />
                   </div>
                   {errors.otp && (
@@ -346,7 +362,7 @@ const Auth = () => {
                   variant="hero"
                   size="lg"
                   className="w-full"
-                  disabled={isLoading || otp.length !== 6}
+                  disabled={isLoading}
                 >
                   {isLoading ? (
                     <>
@@ -416,11 +432,11 @@ const Auth = () => {
                   {isLoading ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Sending OTP...
+                      Sending code...
                     </>
                   ) : (
                     <>
-                      Send OTP
+                      Send reset code
                       <ArrowRight className="w-4 h-4" />
                     </>
                   )}
@@ -440,48 +456,70 @@ const Auth = () => {
                 </Button>
               </form>
             ) : showOtpVerification ? (
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-4">
                 <div className="text-center mb-4">
                   <KeyRound className="w-12 h-12 text-primary mx-auto mb-2" />
                   <p className="text-sm text-muted-foreground">
-                    Enter the 6-digit code sent to <strong>{email}</strong>
+                    We sent a verification code to <strong>{email}</strong>. Enter the OTP below to activate your account.
                   </p>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="otp">OTP Code</Label>
-                  <div className="relative">
-                    <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      id="otp"
-                      type="text"
-                      placeholder="000000"
-                      value={otp}
-                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                      className="pl-10 text-center text-2xl tracking-widest font-mono"
-                      maxLength={6}
-                    />
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="otp">OTP Code</Label>
+                    <div className="relative">
+                      <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        id="otp"
+                        type="text"
+                        placeholder="Enter OTP"
+                        value={otp}
+                        onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                        className="pl-10 text-center text-2xl tracking-widest font-mono"
+                        maxLength={8}
+                      />
+                    </div>
+                    {errors.otp && (
+                      <p className="text-sm text-destructive">{errors.otp}</p>
+                    )}
                   </div>
-                  {errors.otp && (
-                    <p className="text-sm text-destructive">{errors.otp}</p>
-                  )}
-                </div>
+
+                  <Button
+                    type="submit"
+                    variant="hero"
+                    size="lg"
+                    className="w-full"
+                    disabled={isLoading || otp.length < 6}
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Verifying...
+                      </>
+                    ) : (
+                      <>
+                        Verify OTP
+                        <ArrowRight className="w-4 h-4" />
+                      </>
+                    )}
+                  </Button>
 
                 <Button
-                  type="submit"
+                  type="button"
                   variant="hero"
                   size="lg"
                   className="w-full"
-                  disabled={isLoading || otp.length !== 6}
+                  onClick={handleResendOtp}
+                  disabled={isLoading}
                 >
                   {isLoading ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Verifying...
+                      Resending code...
                     </>
                   ) : (
                     <>
-                      Verify OTP
+                      Resend verification code
                       <ArrowRight className="w-4 h-4" />
                     </>
                   )}
@@ -490,27 +528,17 @@ const Auth = () => {
                 <Button
                   type="button"
                   variant="ghost"
-                  className="w-full text-sm"
-                  onClick={handleResendOtp}
-                  disabled={isLoading}
-                >
-                  Didn't receive code? Resend OTP
-                </Button>
-
-                <Button
-                  type="button"
-                  variant="hero"
                   className="w-full"
                   onClick={() => {
                     setShowOtpVerification(false);
                     setOtp('');
-                    setOtpSent(false);
                     setErrors({});
                   }}
                 >
                   Back
                 </Button>
-              </form>
+                </form>
+              </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
                 {isSignUp && (
@@ -614,11 +642,11 @@ const Auth = () => {
                   {isLoading ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      {isSignUp ? 'Sending OTP...' : 'Signing in...'}
+                      {isSignUp ? 'Creating account...' : 'Signing in...'}
                     </>
                   ) : (
                     <>
-                      {isSignUp ? 'Continue with Email Verification' : 'Sign In'}
+                      {isSignUp ? 'Create account' : 'Sign In'}
                       <ArrowRight className="w-4 h-4" />
                     </>
                   )}

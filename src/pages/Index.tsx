@@ -1,3 +1,4 @@
+import apiFetch from '@/api/client';
 import CategoryCard from '@/components/CategoryCard';
 import Navbar from '@/components/Navbar';
 import {
@@ -8,7 +9,7 @@ import {
 } from "@/components/ui/accordion";
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
+import type { IndexCategory as Category } from '@/interfaces/pages/index';
 import {
   ArrowRight,
   BookOpen,
@@ -24,14 +25,7 @@ import {
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-interface Category {
-  id: string;
-  name: string;
-  description: string | null;
-  icon: string | null;
-  color: string | null;
-  subject_count?: number;
-}
+
 
 const Index = () => {
   const { user, loading } = useAuth();
@@ -47,39 +41,33 @@ const Index = () => {
 
   const fetchCategories = async () => {
     setLoadingCategories(true);
-    
-    // Fetch categories
-    const { data: categoriesData } = await supabase
-      .from('categories')
-      .select('*')
-      .order('name');
-    
-    if (categoriesData) {
-      // Fetch all active subjects and count by category
-      const { data: subjectsData } = await supabase
-        .from('subjects')
-        .select('category_id')
-        .eq('is_active', true);
-      
-      // Count subjects per category
+    try {
+      const res = await apiFetch('/categories');
+      const body = await res.json();
+      const categoriesData = body?.data || [];
+
+      const res2 = await apiFetch('/subjects');
+      const body2 = await res2.json();
+      const subjectsData = (body2?.data || []).filter((s: any) => s.is_active === true || s.isActive === true || s.is_active === undefined);
+
       const subjectCounts = new Map<string, number>();
-      if (subjectsData) {
-        subjectsData.forEach((subject) => {
-          const count = subjectCounts.get(subject.category_id) || 0;
-          subjectCounts.set(subject.category_id, count + 1);
-        });
-      }
-      
-      // Map categories with subject counts
-      const categoriesWithCounts = categoriesData.map((category) => ({
+      subjectsData.forEach((subject: any) => {
+        const cid = subject.category_id || subject.categoryId;
+        const count = subjectCounts.get(cid) || 0;
+        subjectCounts.set(cid, count + 1);
+      });
+
+      const categoriesWithCounts = categoriesData.map((category: any) => ({
         ...category,
         subject_count: subjectCounts.get(category.id) || 0,
       }));
-      
+
       setCategories(categoriesWithCounts);
+    } catch (e) {
+      console.error('Failed to fetch categories', e);
+    } finally {
+      setLoadingCategories(false);
     }
-    
-    setLoadingCategories(false);
   };
 
   if (loading) {

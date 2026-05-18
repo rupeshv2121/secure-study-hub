@@ -1,3 +1,4 @@
+import apiFetch from '@/api/client';
 import BackButton from '@/components/BackButton';
 import Navbar from '@/components/Navbar';
 import SubjectCard from '@/components/SubjectCard';
@@ -13,30 +14,12 @@ import {
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
+import type { CategoryPageItem as Category, SubjectPageItem as Subject } from '@/interfaces/pages/subjects';
 import { CheckCircle, IndianRupee, Loader2, Search } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 
-interface Subject {
-  id: string;
-  name: string;
-  description: string | null;
-  price: number;
-  category_id: string;
-  categories: { name: string; color: string | null } | null;
-}
-
-interface Category {
-  id: string;
-  name: string;
-}
-
-interface LectureCount {
-  subject_id: string;
-  count: number;
-}
 
 const Subjects = () => {
   const { user, loading: authLoading } = useAuth();
@@ -86,58 +69,49 @@ const Subjects = () => {
 
   const fetchData = async () => {
     setLoading(true);
+    try {
+      const [catsRes, subsRes] = await Promise.all([apiFetch('/categories'), apiFetch('/subjects')]);
+      const catsBody = await catsRes.json();
+      const subsBody = await subsRes.json();
+      const cats = catsBody?.data || [];
+      let subs = subsBody?.data || [];
 
-    // Fetch categories
-    const { data: cats } = await supabase.from('categories').select('id, name').order('name');
-    if (cats) {
       setCategories(cats);
-    }
 
-    // Fetch subjects
-    let query = supabase
-      .from('subjects')
-      .select('*, categories(name, color)')
-      .eq('is_active', true)
-      .order('name');
-
-    if (categoryFilter !== 'all') {
-      query = query.eq('category_id', categoryFilter);
-    }
-
-    const { data: subjectsData } = await query;
-    if (subjectsData) setSubjects(subjectsData);
-
-    // Fetch user's purchases
-    if (user) {
-      const { data: purchases } = await supabase
-        .from('user_subject_purchases')
-        .select('subject_id')
-        .eq('user_id', user.id)
-        .eq('payment_status', 'completed');
-      
-      if (purchases) {
-        setPurchasedSubjects(new Set(purchases.map(p => p.subject_id)));
+      if (categoryFilter !== 'all') {
+        subs = subs.filter((s: any) => s.category_id === categoryFilter || s.categories?.id === categoryFilter);
       }
-    }
+      subs = subs.filter((s: any) => s.is_active === true || s.isActive === true || s.is_active === undefined);
+      setSubjects(subs);
 
-    // Fetch lecture counts per subject
-    const { data: lectures } = await supabase
-      .from('lectures')
-      .select('subject_id')
-      .eq('is_published', true)
-      .not('subject_id', 'is', null);
-    
-    if (lectures) {
+      // Fetch user's purchases
+      if (user) {
+        const purchasesRes = await apiFetch('/purchases');
+        const purchasesBody = await purchasesRes.json();
+        const purchases = purchasesBody?.data || [];
+        const purchased = new Set<string>();
+        purchases.forEach((p: any) => {
+          const sid = p.subjectId || p.subjects?.id || p.lecture?.subjectId;
+          if (sid) purchased.add(sid);
+        });
+        setPurchasedSubjects(purchased);
+      }
+
+      // Lecture counts per subject
+      const lecturesRes = await apiFetch('/lectures');
+      const lecturesBody = await lecturesRes.json();
+      const lectures = lecturesBody?.data || [];
       const counts = new Map<string, number>();
-      lectures.forEach(l => {
-        if (l.subject_id) {
-          counts.set(l.subject_id, (counts.get(l.subject_id) || 0) + 1);
-        }
+      lectures.forEach((l: any) => {
+        const sid = l.subject_id || l.subjectId || l.subjects?.id;
+        if (sid) counts.set(sid, (counts.get(sid) || 0) + 1);
       });
       setLectureCounts(counts);
+    } catch (e) {
+      console.error('Failed to load subjects data', e);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   const filteredSubjects = subjects.filter((sub) =>

@@ -1,3 +1,4 @@
+import apiFetch from '@/api/client';
 import BackButton from '@/components/BackButton';
 import LectureCard from '@/components/LectureCard';
 import Navbar from '@/components/Navbar';
@@ -5,33 +6,12 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSubjectAccess } from '@/hooks/useSubjectAccess';
-import { supabase } from '@/integrations/supabase/client';
+import type { CategoryPageItem as Category, LecturePageItem as Lecture, SubjectPageItem as Subject } from '@/interfaces/pages/lectures';
 import { Loader2, Search } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
-interface Lecture {
-  id: string;
-  title: string;
-  description: string | null;
-  category_id: string;
-  subject_id: string | null;
-  is_free_preview: boolean;
-  view_count: number;
-  created_at: string;
-  categories: { name: string; color: string | null } | null;
-  subjects: { name: string } | null;
-}
 
-interface Category {
-  id: string;
-  name: string;
-}
-
-interface Subject {
-  id: string;
-  name: string;
-}
 
 const Lectures = () => {
   const { user, loading: authLoading, isAdmin } = useAuth();
@@ -61,34 +41,30 @@ const Lectures = () => {
 
   const fetchData = async () => {
     setLoading(true);
+    try {
+      const [catsRes, subsRes] = await Promise.all([apiFetch('/categories'), apiFetch('/subjects')]);
+      const catsBody = await catsRes.json();
+      const subsBody = await subsRes.json();
+      setCategories(catsBody?.data || []);
+      setSubjects((subsBody?.data || []).filter((s: any) => s.is_active === true || s.isActive === true || s.is_active === undefined));
 
-    // Fetch categories
-    const { data: cats } = await supabase.from('categories').select('id, name').order('name');
-    if (cats) setCategories(cats);
+      // Fetch lectures (optionally filtered by subject)
+      const lecturesPath = subjectFilter !== 'all' ? `/lectures?subjectId=${encodeURIComponent(subjectFilter)}` : '/lectures';
+      const lecturesRes = await apiFetch(lecturesPath);
+      const lecturesBody = await lecturesRes.json();
+      let lecturesData = lecturesBody?.data || [];
 
-    // Fetch subjects
-    const { data: subs } = await supabase.from('subjects').select('id, name').eq('is_active', true).order('name');
-    if (subs) setSubjects(subs);
+      // Apply category filter client-side if needed
+      if (categoryFilter !== 'all') {
+        lecturesData = lecturesData.filter((l: any) => l.category_id === categoryFilter || l.categories?.id === categoryFilter);
+      }
 
-    // Fetch lectures - for admins, fetch all; for users, RLS handles access
-    let query = supabase
-      .from('lectures')
-      .select('*, categories(name, color), subjects(name)')
-      .eq('is_published', true)
-      .order('created_at', { ascending: false });
-
-    if (categoryFilter !== 'all') {
-      query = query.eq('category_id', categoryFilter);
+      setLectures(lecturesData);
+    } catch (e) {
+      console.error('Failed to load lectures data', e);
+    } finally {
+      setLoading(false);
     }
-
-    if (subjectFilter !== 'all') {
-      query = query.eq('subject_id', subjectFilter);
-    }
-
-    const { data } = await query;
-    if (data) setLectures(data);
-
-    setLoading(false);
   };
 
   const filteredLectures = lectures.filter((lec) =>

@@ -1,20 +1,8 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import type { SubjectCardProps } from '@/interfaces/components';
 import { BookOpen, Check, IndianRupee, Lock } from 'lucide-react';
-
-interface SubjectCardProps {
-  id: string;
-  name: string;
-  description: string | null;
-  price: number;
-  categoryName: string;
-  categoryColor: string | null;
-  isPurchased: boolean;
-  lectureCount: number;
-  onPurchase: (subjectId: string, price: number) => void;
-  onView: (subjectId: string) => void;
-}
 
 const SubjectCard = ({
   id,

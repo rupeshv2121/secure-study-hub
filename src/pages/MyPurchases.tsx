@@ -1,36 +1,15 @@
+import apiFetch from '@/api/client';
+import BackButton from '@/components/BackButton';
+import Navbar from '@/components/Navbar';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useAuth } from '@/contexts/AuthContext';
+import type { LectureMini as Lecture, Purchase } from '@/interfaces/pages/mypurchases';
+import { BookOpen, Calendar, ChevronRight, Loader2, Package } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
-import Navbar from '@/components/Navbar';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import BackButton from '@/components/BackButton';
-import { Badge } from '@/components/ui/badge';
-import { Loader2, BookOpen, Calendar, ChevronRight, Package } from 'lucide-react';
 
-interface Purchase {
-  id: string;
-  purchased_at: string;
-  amount_paid: number;
-  subjects: {
-    id: string;
-    name: string;
-    description: string | null;
-    categories: {
-      name: string;
-      color: string | null;
-    } | null;
-  } | null;
-}
-
-interface Lecture {
-  id: string;
-  title: string;
-  description: string | null;
-  is_free_preview: boolean;
-  created_at: string;
-}
 
 const MyPurchases = () => {
   const { user, loading: authLoading } = useAuth();
@@ -54,30 +33,33 @@ const MyPurchases = () => {
   }, [user]);
 
   const fetchPurchases = async () => {
-    const { data, error } = await supabase
-      .from('user_subject_purchases')
-      .select(`
-        id,
-        purchased_at,
-        amount_paid,
-        subjects (
-          id,
-          name,
-          description,
-          categories (
-            name,
-            color
-          )
-        )
-      `)
-      .eq('user_id', user!.id)
-      .eq('payment_status', 'completed')
-      .order('purchased_at', { ascending: false });
+    try {
+      const res = await apiFetch('/purchases');
+      const body = await res.json();
+      const data = body?.data || [];
 
-    if (!error && data) {
-      setPurchases(data);
+      // Fetch subjects map to enrich purchases
+      const subjectsRes = await apiFetch('/subjects');
+      const subjectsBody = await subjectsRes.json();
+      const subjects = subjectsBody?.data || [];
+      const subjectMap = new Map(subjects.map((s: any) => [s.id, s]));
+
+      const normalized = data.map((p: any) => {
+        const subjectId = p.subjectId || p.subjects?.id || p.lecture?.subjectId;
+        return {
+          id: p.id,
+          purchased_at: p.createdAt || p.purchased_at || p.created_at,
+          amount_paid: p.amount || p.amount_paid || 0,
+          subjects: subjectMap.get(subjectId) || null,
+        };
+      });
+
+      setPurchases(normalized);
+    } catch (e) {
+      console.error('Failed to fetch purchases', e);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const fetchLecturesForSubject = async (subjectId: string) => {
@@ -89,15 +71,13 @@ const MyPurchases = () => {
     setLoadingLectures(subjectId);
     setExpandedSubject(subjectId);
 
-    const { data } = await supabase
-      .from('lectures')
-      .select('id, title, description, is_free_preview, created_at')
-      .eq('subject_id', subjectId)
-      .eq('is_published', true)
-      .order('created_at', { ascending: true });
-
-    if (data) {
+    try {
+      const res = await apiFetch(`/lectures?subjectId=${encodeURIComponent(subjectId)}`);
+      const body = await res.json();
+      const data = body?.data || [];
       setSubjectLectures((prev) => ({ ...prev, [subjectId]: data }));
+    } catch (e) {
+      console.error('Failed to fetch lectures for subject', e);
     }
     setLoadingLectures(null);
   };

@@ -1,12 +1,7 @@
 import { Button } from '@/components/ui/button';
+import type { BackButtonProps } from '@/interfaces/components';
 import { ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-
-interface BackButtonProps {
-  to?: string;
-  label?: string;
-  className?: string;
-}
 
 const BackButton = ({ to, label = 'Back', className }: BackButtonProps) => {
   const navigate = useNavigate();

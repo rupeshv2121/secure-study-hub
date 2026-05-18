@@ -1,16 +1,11 @@
 import * as React from "react";
 
-import type { ToastActionElement, ToastProps } from "@/components/ui/toast";
+import type { Action, State, Toast, ToasterToast } from "@/interfaces/toast";
 
 const TOAST_LIMIT = 1;
 const TOAST_REMOVE_DELAY = 1000000;
 
-type ToasterToast = ToastProps & {
-  id: string;
-  title?: React.ReactNode;
-  description?: React.ReactNode;
-  action?: ToastActionElement;
-};
+// types imported from interfaces/toast
 
 const actionTypes = {
   ADD_TOAST: "ADD_TOAST",
@@ -26,29 +21,9 @@ function genId() {
   return count.toString();
 }
 
-type ActionType = typeof actionTypes;
+// Action type imported from interfaces/toast
 
-type Action =
-  | {
-      type: ActionType["ADD_TOAST"];
-      toast: ToasterToast;
-    }
-  | {
-      type: ActionType["UPDATE_TOAST"];
-      toast: Partial<ToasterToast>;
-    }
-  | {
-      type: ActionType["DISMISS_TOAST"];
-      toastId?: ToasterToast["id"];
-    }
-  | {
-      type: ActionType["REMOVE_TOAST"];
-      toastId?: ToasterToast["id"];
-    };
-
-interface State {
-  toasts: ToasterToast[];
-}
+// State imported from interfaces/toast
 
 const toastTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
 
@@ -79,7 +54,9 @@ export const reducer = (state: State, action: Action): State => {
     case "UPDATE_TOAST":
       return {
         ...state,
-        toasts: state.toasts.map((t) => (t.id === action.toast.id ? { ...t, ...action.toast } : t)),
+        toasts: state.toasts.map((t) =>
+          t.id === action.toast.id ? { ...t, ...action.toast } : t,
+        ),
       };
 
     case "DISMISS_TOAST": {
@@ -132,7 +109,7 @@ function dispatch(action: Action) {
   });
 }
 
-type Toast = Omit<ToasterToast, "id">;
+// Toast type imported from interfaces/toast
 
 function toast({ ...props }: Toast) {
   const id = genId();
@@ -183,4 +160,4 @@ function useToast() {
   };
 }
 
-export { useToast, toast };
+export { toast, useToast };

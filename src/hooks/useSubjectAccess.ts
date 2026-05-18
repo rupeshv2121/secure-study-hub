@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
+import apiFetch from "@/api/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEffect, useState } from "react";
 
 export const useSubjectAccess = () => {
   const { user, isAdmin } = useAuth();
-  const [purchasedSubjects, setPurchasedSubjects] = useState<Set<string>>(new Set());
+  const [purchasedSubjects, setPurchasedSubjects] = useState<Set<string>>(
+    new Set(),
+  );
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -18,29 +20,41 @@ export const useSubjectAccess = () => {
 
   const fetchPurchases = async () => {
     if (!user) return;
-    
-    const { data } = await supabase
-      .from('user_subject_purchases')
-      .select('subject_id')
-      .eq('user_id', user.id)
-      .eq('payment_status', 'completed');
-    
-    if (data) {
-      setPurchasedSubjects(new Set(data.map(p => p.subject_id)));
+    try {
+      const res = await apiFetch("/purchases");
+      const body = await res.json();
+      const purchases = body?.data || [];
+
+      // purchases may include lecture or subject info; normalize to subject ids
+      const subjectIds = new Set<string>();
+      for (const p of purchases) {
+        if (p.subjectId) subjectIds.add(p.subjectId);
+        else if (p.subjects && p.subjects.id) subjectIds.add(p.subjects.id);
+        else if (p.lecture && p.lecture.subjectId)
+          subjectIds.add(p.lecture.subjectId);
+      }
+
+      setPurchasedSubjects(subjectIds);
+    } catch (e) {
+      console.error("Failed to fetch purchases", e);
+      setPurchasedSubjects(new Set());
     }
     setLoading(false);
   };
 
-  const hasAccess = (subjectId: string | null, isFreePreview: boolean = false): boolean => {
+  const hasAccess = (
+    subjectId: string | null,
+    isFreePreview: boolean = false,
+  ): boolean => {
     // Admins have access to everything
     if (isAdmin) return true;
-    
+
     // No subject = free access (backward compatibility)
     if (!subjectId) return true;
-    
+
     // Free preview lectures are accessible
     if (isFreePreview) return true;
-    
+
     // Check if user has purchased the subject
     return purchasedSubjects.has(subjectId);
   };

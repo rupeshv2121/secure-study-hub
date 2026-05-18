@@ -1,25 +1,14 @@
+import apiFetch from '@/api/client';
 import BackButton from '@/components/BackButton';
 import Navbar from '@/components/Navbar';
 import SecureViewer from '@/components/SecureViewer';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
+import type { LectureViewerLecture as Lecture, Slide } from '@/interfaces/pages/viewer';
 import { Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
-interface Lecture {
-  id: string;
-  title: string;
-  description: string | null;
-  categories: { name: string } | null;
-}
-
-interface Slide {
-  id: string;
-  slide_number: number;
-  storage_path: string;
-}
 
 const Viewer = () => {
   const { id } = useParams<{ id: string }>();
@@ -44,32 +33,33 @@ const Viewer = () => {
 
   const fetchLecture = async () => {
     setLoading(true);
+    try {
+      const res = await apiFetch(`/lectures/${id}`);
+      const body = await res.json();
+      const lec = body?.data || null;
+      if (lec) setLecture(lec);
 
-    const { data: lec } = await supabase
-      .from('lectures')
-      .select('*, categories(name)')
-      .eq('id', id)
-      .single();
-
-    if (lec) {
-      setLecture(lec);
-
-      const { data: slideData } = await supabase
-        .from('lecture_slides')
-        .select('*')
-        .eq('lecture_id', id)
-        .order('slide_number');
-
-      if (slideData) setSlides(slideData);
+      const slidesRes = await apiFetch(`/lecture-slides?lectureId=${encodeURIComponent(String(id))}`);
+      const slidesBody = await slidesRes.json();
+      setSlides(slidesBody?.data || []);
+    } catch (e) {
+      console.error('Failed to fetch lecture or slides', e);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   const logView = async () => {
     if (user && id) {
-      await supabase.from('view_logs').insert({ lecture_id: id, user_id: user.id });
-      await supabase.rpc('increment_view_count', { lecture_uuid: id });
+      try {
+        await apiFetch('/view-logs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lectureId: id }),
+        });
+      } catch (e) {
+        console.error('Failed to log view', e);
+      }
     }
   };
 

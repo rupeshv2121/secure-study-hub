@@ -1,8 +1,6 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import apiFetch from '@/api/client';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
@@ -10,6 +8,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -17,27 +17,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
+import { BookOpen, Edit, IndianRupee, Plus, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Plus, Edit, Trash2, BookOpen, IndianRupee } from 'lucide-react';
 
-interface Category {
-  id: string;
-  name: string;
-}
-
-interface Subject {
-  id: string;
-  name: string;
-  description: string | null;
-  price: number;
-  is_active: boolean;
-  category_id: string;
-  created_at: string;
-  categories?: Category;
-}
+import type { Category, Subject } from '@/interfaces/admin';
 
 const AdminSubjects = () => {
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -55,25 +41,21 @@ const AdminSubjects = () => {
   });
 
   const fetchData = async () => {
-    const [subjectsRes, categoriesRes] = await Promise.all([
-      supabase
-        .from('subjects')
-        .select('*, categories(id, name)')
-        .order('created_at', { ascending: false }),
-      supabase.from('categories').select('id, name').order('name'),
-    ]);
-
-    if (subjectsRes.error) {
+    try {
+      const [subjectsRes, categoriesRes] = await Promise.all([apiFetch('/subjects'), apiFetch('/categories')]);
+      const sbody = await subjectsRes.json();
+      const cbody = await categoriesRes.json();
+      const subs = sbody?.data || [];
+      const cats = cbody?.data || [];
+      // normalize subject.title -> name
+      setSubjects(subs.map((s: any) => ({ ...s, name: s.title || s.name, category_id: s.categoryId ?? s.category_id, is_active: s.isActive ?? s.is_active })));
+      setCategories(cats || []);
+    } catch (e) {
+      console.error(e);
       toast.error('Failed to load subjects');
-    } else {
-      setSubjects(subjectsRes.data || []);
+    } finally {
+      setLoading(false);
     }
-
-    if (!categoriesRes.error) {
-      setCategories(categoriesRes.data || []);
-    }
-
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -115,39 +97,54 @@ const AdminSubjects = () => {
     }
 
     if (editingSubject) {
-      const { error } = await supabase
-        .from('subjects')
-        .update({
-          name: formData.name,
-          description: formData.description || null,
-          price: formData.price,
-          category_id: formData.category_id,
-          is_active: formData.is_active,
-        })
-        .eq('id', editingSubject.id);
-
-      if (error) {
+      try {
+        const res = await apiFetch(`/subjects/${encodeURIComponent(editingSubject.id)}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: formData.name,
+            description: formData.description || undefined,
+            price: formData.price,
+            categoryId: formData.category_id,
+            isActive: formData.is_active,
+          }),
+        });
+        const body = await res.json();
+        if (!body?.success) {
+          toast.error('Failed to update subject');
+        } else {
+          toast.success('Subject updated');
+          setDialogOpen(false);
+          fetchData();
+        }
+      } catch (e) {
+        console.error(e);
         toast.error('Failed to update subject');
-      } else {
-        toast.success('Subject updated');
-        setDialogOpen(false);
-        fetchData();
       }
     } else {
-      const { error } = await supabase.from('subjects').insert({
-        name: formData.name,
-        description: formData.description || null,
-        price: formData.price,
-        category_id: formData.category_id,
-        is_active: formData.is_active,
-      });
-
-      if (error) {
+      try {
+        const res = await apiFetch('/subjects', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: formData.name,
+            description: formData.description || undefined,
+            price: formData.price,
+            categoryId: formData.category_id,
+            isActive: formData.is_active,
+          }),
+        });
+        const body = await res.json();
+        if (!body?.success) {
+          toast.error('Failed to create subject');
+        } else {
+          toast.success('Subject created');
+          setDialogOpen(false);
+          fetchData();
+        }
+      } catch (e) {
+        console.error(e);
         toast.error('Failed to create subject');
-      } else {
-        toast.success('Subject created');
-        setDialogOpen(false);
-        fetchData();
       }
     }
   };
@@ -155,27 +152,38 @@ const AdminSubjects = () => {
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure? This will affect all lectures under this subject.')) return;
 
-    const { error } = await supabase.from('subjects').delete().eq('id', id);
-
-    if (error) {
+    try {
+      const res = await apiFetch(`/subjects/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      const body = await res.json();
+      if (!body?.success) {
+        toast.error('Failed to delete subject');
+      } else {
+        toast.success('Subject deleted');
+        fetchData();
+      }
+    } catch (e) {
+      console.error(e);
       toast.error('Failed to delete subject');
-    } else {
-      toast.success('Subject deleted');
-      fetchData();
     }
   };
 
   const toggleActive = async (subject: Subject) => {
-    const { error } = await supabase
-      .from('subjects')
-      .update({ is_active: !subject.is_active })
-      .eq('id', subject.id);
-
-    if (error) {
+    try {
+      const res = await apiFetch(`/subjects/${encodeURIComponent(subject.id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: !subject.is_active }),
+      });
+      const body = await res.json();
+      if (!body?.success) {
+        toast.error('Failed to update subject');
+      } else {
+        toast.success(subject.is_active ? 'Subject deactivated' : 'Subject activated');
+        fetchData();
+      }
+    } catch (e) {
+      console.error(e);
       toast.error('Failed to update subject');
-    } else {
-      toast.success(subject.is_active ? 'Subject deactivated' : 'Subject activated');
-      fetchData();
     }
   };
 
