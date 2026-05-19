@@ -16,76 +16,87 @@ const LectureCard = ({
   isLocked = false,
   isFreePreview = false,
 }: LectureCardProps) => {
-  const CardWrapper = isLocked ? 'div' : Link;
-  const wrapperProps = isLocked ? {} : { to: `/viewer/${id}` };
+  const content = (
+    <Card className={`group h-full gradient-card border-border/50 transition-all duration-300 overflow-hidden ${isLocked ? 'opacity-75 cursor-not-allowed' : 'hover:border-primary/30 hover:shadow-medium cursor-pointer'}`}>
+      <CardContent className="p-6">
+        <div className="flex items-start gap-4">
+          <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 transition-transform duration-300 ${isLocked ? 'bg-muted' : 'bg-primary/10 group-hover:scale-110'}`}>
+            {isLocked ? (
+              <Lock className="w-6 h-6 text-muted-foreground" />
+            ) : (
+              <FileText className="w-6 h-6 text-primary" />
+            )}
+          </div>
 
-  return (
-    <CardWrapper {...wrapperProps as any}>
-      <Card className={`group h-full gradient-card border-border/50 transition-all duration-300 overflow-hidden ${isLocked ? 'opacity-75 cursor-not-allowed' : 'hover:border-primary/30 hover:shadow-medium cursor-pointer'}`}>
-        <CardContent className="p-6">
-          <div className="flex items-start gap-4">
-            <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 transition-transform duration-300 ${isLocked ? 'bg-muted' : 'bg-primary/10 group-hover:scale-110'}`}>
-              {isLocked ? (
-                <Lock className="w-6 h-6 text-muted-foreground" />
-              ) : (
-                <FileText className="w-6 h-6 text-primary" />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-2">
+              <Badge
+                variant="secondary"
+                className="text-xs"
+                style={{
+                  backgroundColor: categoryColor
+                    ? `${categoryColor}20`
+                    : 'hsl(var(--secondary))',
+                  color: categoryColor || 'hsl(var(--secondary-foreground))',
+                }}
+              >
+                {categoryName}
+              </Badge>
+              {isFreePreview && (
+                <Badge variant="outline" className="text-xs gap-1 border-green-500/50 text-green-500">
+                  <Sparkles className="w-3 h-3" />
+                  Free Preview
+                </Badge>
+              )}
+              {isLocked && (
+                <Badge variant="outline" className="text-xs gap-1 border-orange-500/50 text-orange-500">
+                  <Lock className="w-3 h-3" />
+                  Locked
+                </Badge>
               )}
             </div>
 
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-2">
-                <Badge
-                  variant="secondary"
-                  className="text-xs"
-                  style={{
-                    backgroundColor: categoryColor
-                      ? `${categoryColor}20`
-                      : 'hsl(var(--secondary))',
-                    color: categoryColor || 'hsl(var(--secondary-foreground))',
-                  }}
-                >
-                  {categoryName}
-                </Badge>
-                {isFreePreview && (
-                  <Badge variant="outline" className="text-xs gap-1 border-green-500/50 text-green-500">
-                    <Sparkles className="w-3 h-3" />
-                    Free Preview
-                  </Badge>
-                )}
-                {isLocked && (
-                  <Badge variant="outline" className="text-xs gap-1 border-orange-500/50 text-orange-500">
-                    <Lock className="w-3 h-3" />
-                    Locked
-                  </Badge>
-                )}
-              </div>
+            <h3 className={`font-semibold transition-colors line-clamp-1 ${isLocked ? 'text-muted-foreground' : 'text-foreground group-hover:text-primary'}`}>
+              {title}
+            </h3>
 
-              <h3 className={`font-semibold transition-colors line-clamp-1 ${isLocked ? 'text-muted-foreground' : 'text-foreground group-hover:text-primary'}`}>
-                {title}
-              </h3>
+            {description && (
+              <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                {description}
+              </p>
+            )}
 
-              {description && (
-                <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                  {description}
-                </p>
-              )}
-
-              <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground">
-                <span className="flex items-center gap-1">
-                  <Eye className="w-3.5 h-3.5" />
-                  {viewCount} views
-                </span>
-                <span className="flex items-center gap-1">
-                  <Calendar className="w-3.5 h-3.5" />
-                  {format(new Date(createdAt), 'MMM d, yyyy')}
-                </span>
-              </div>
+            <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <Eye className="w-3.5 h-3.5" />
+                {viewCount} views
+              </span>
+              <span className="flex items-center gap-1">
+                <Calendar className="w-3.5 h-3.5" />
+                {(() => {
+                  try {
+                    const date = createdAt ? new Date(createdAt) : null;
+                    if (date && !isNaN(date.getTime())) {
+                      return format(date, 'MMM d, yyyy');
+                    }
+                  } catch (e) {
+                    // fallthrough to fallback
+                  }
+                  return 'Unknown date';
+                })()}
+              </span>
             </div>
           </div>
-        </CardContent>
-      </Card>
-    </CardWrapper>
+        </div>
+      </CardContent>
+    </Card>
   );
+
+  if (isLocked) {
+    return <div>{content}</div>;
+  }
+
+  return <Link to={`/viewer/${id}`}>{content}</Link>;
 };
 
 export default LectureCard;

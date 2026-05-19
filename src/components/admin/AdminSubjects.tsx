@@ -3,19 +3,19 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
@@ -42,13 +42,41 @@ const AdminSubjects = () => {
 
   const fetchData = async () => {
     try {
-      const [subjectsRes, categoriesRes] = await Promise.all([apiFetch('/subjects'), apiFetch('/categories')]);
+      const [subjectsRes, categoriesRes, lecturesRes] = await Promise.all([
+        apiFetch('/subjects'),
+        apiFetch('/categories'),
+        apiFetch('/lectures'),
+      ]);
+
       const sbody = await subjectsRes.json();
       const cbody = await categoriesRes.json();
+      const lbody = await lecturesRes.json();
+
       const subs = sbody?.data || [];
       const cats = cbody?.data || [];
-      // normalize subject.title -> name
-      setSubjects(subs.map((s: any) => ({ ...s, name: s.title || s.name, category_id: s.categoryId ?? s.category_id, is_active: s.isActive ?? s.is_active })));
+      const lectures = lbody?.data || [];
+
+      // compute price per subject from lectures (use max lecture price)
+      const priceMap = new Map<string, number>();
+      lectures.forEach((l: any) => {
+        const sid = l.subjectId ?? l.subject_id ?? l.subjects?.id;
+        if (!sid) return;
+        const p = typeof l.price === 'number' ? l.price : parseFloat(l.price || 0) || 0;
+        const existing = priceMap.get(sid) || 0;
+        if (p > existing) priceMap.set(sid, p);
+      });
+
+      // normalize subject.title -> name and attach computed price
+      setSubjects(
+        subs.map((s: any) => ({
+          ...s,
+          name: s.title || s.name,
+          category_id: s.categoryId ?? s.category_id ?? s.category?.id ?? s.categories?.id,
+          categories: s.category ?? s.categories,
+          is_active: s.isActive ?? s.is_active ?? true,
+          price: priceMap.get(s.id) ?? 0,
+        })),
+      );
       setCategories(cats || []);
     } catch (e) {
       console.error(e);
@@ -74,8 +102,8 @@ const AdminSubjects = () => {
         name: subject.name,
         description: subject.description || '',
         price: subject.price,
-        category_id: subject.category_id,
-        is_active: subject.is_active,
+        category_id: subject.category_id || subject.categories?.id || '',
+        is_active: subject.is_active ?? true,
       });
     } else {
       resetForm();
@@ -104,14 +132,13 @@ const AdminSubjects = () => {
           body: JSON.stringify({
             title: formData.name,
             description: formData.description || undefined,
-            price: formData.price,
             categoryId: formData.category_id,
             isActive: formData.is_active,
           }),
         });
         const body = await res.json();
         if (!body?.success) {
-          toast.error('Failed to update subject');
+          toast.error(body?.message || 'Failed to update subject');
         } else {
           toast.success('Subject updated');
           setDialogOpen(false);
@@ -129,14 +156,13 @@ const AdminSubjects = () => {
           body: JSON.stringify({
             title: formData.name,
             description: formData.description || undefined,
-            price: formData.price,
             categoryId: formData.category_id,
             isActive: formData.is_active,
           }),
         });
         const body = await res.json();
         if (!body?.success) {
-          toast.error('Failed to create subject');
+          toast.error(body?.message || 'Failed to create subject');
         } else {
           toast.success('Subject created');
           setDialogOpen(false);
@@ -156,7 +182,7 @@ const AdminSubjects = () => {
       const res = await apiFetch(`/subjects/${encodeURIComponent(id)}`, { method: 'DELETE' });
       const body = await res.json();
       if (!body?.success) {
-        toast.error('Failed to delete subject');
+        toast.error(body?.message || 'Failed to delete subject');
       } else {
         toast.success('Subject deleted');
         fetchData();
@@ -168,22 +194,30 @@ const AdminSubjects = () => {
   };
 
   const toggleActive = async (subject: Subject) => {
+    const nextValue = !(subject.is_active ?? true);
+
     try {
       const res = await apiFetch(`/subjects/${encodeURIComponent(subject.id)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isActive: !subject.is_active }),
+        body: JSON.stringify({ isActive: nextValue }),
       });
       const body = await res.json();
+
       if (!body?.success) {
-        toast.error('Failed to update subject');
-      } else {
-        toast.success(subject.is_active ? 'Subject deactivated' : 'Subject activated');
-        fetchData();
+        toast.error(body?.message || 'Failed to update subject status');
+        return;
       }
+
+      setSubjects((prev) =>
+        prev.map((item) =>
+          item.id === subject.id ? { ...item, is_active: nextValue } : item,
+        ),
+      );
+      toast.success(`Subject ${nextValue ? 'activated' : 'deactivated'}`);
     } catch (e) {
       console.error(e);
-      toast.error('Failed to update subject');
+      toast.error('Failed to update subject status');
     }
   };
 
@@ -227,8 +261,8 @@ const AdminSubjects = () => {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <CardTitle className="text-lg truncate">{subject.name}</CardTitle>
-                      <Badge variant={subject.is_active ? 'default' : 'secondary'}>
-                        {subject.is_active ? 'Active' : 'Inactive'}
+                      <Badge variant={(subject.is_active ?? true) ? 'default' : 'secondary'}>
+                        {(subject.is_active ?? true) ? 'Active' : 'Inactive'}
                       </Badge>
                       <Badge variant="outline" className="gap-1">
                         <IndianRupee className="w-3 h-3" />
@@ -240,14 +274,16 @@ const AdminSubjects = () => {
                     </p>
                   </div>
                   <div className="flex gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => toggleActive(subject)}
-                      title={subject.is_active ? 'Deactivate' : 'Activate'}
-                    >
-                      <BookOpen className={`w-4 h-4 ${subject.is_active ? 'text-primary' : ''}`} />
-                    </Button>
+                    <div className="flex items-center gap-2 pr-2">
+                      <span className="text-xs text-muted-foreground">
+                        {(subject.is_active ?? true) ? 'Active' : 'Inactive'}
+                      </span>
+                      <Switch
+                        checked={subject.is_active ?? true}
+                        onCheckedChange={() => toggleActive(subject)}
+                        aria-label={`Toggle active status for ${subject.name}`}
+                      />
+                    </div>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -351,7 +387,7 @@ const AdminSubjects = () => {
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="flex-1">
                 Cancel
               </Button>
-              <Button type="submit" className="flex-1" disabled={categories.length === 0}>
+              <Button type="submit" className="flex-1">
                 {editingSubject ? 'Update' : 'Create'}
               </Button>
             </div>

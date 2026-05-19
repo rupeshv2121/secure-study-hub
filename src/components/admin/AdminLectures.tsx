@@ -3,42 +3,42 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { convertPdfToImages, getPdfPageCount, MAX_PDF_PAGES } from '@/utils/pdfToImages';
 import {
-  closestCenter,
-  DndContext,
-  DragEndEvent,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
+    closestCenter,
+    DndContext,
+    DragEndEvent,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
 } from '@dnd-kit/core';
 import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    useSortable,
+    verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { AlertTriangle, Edit, Eye, EyeOff, File, FileText, GripVertical, Image, Plus, Trash2, Upload } from 'lucide-react';
+import { AlertTriangle, Edit, Eye, EyeOff, File, FileText, GripVertical, Plus, Trash2, Upload } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -109,7 +109,6 @@ const SortableLectureCard = ({
                     <>{cat} {sub ? `• ${sub}` : ''} • {lecture.view_count} views</>
                   );
                 })()}
-                {lecture.is_free_preview && ' • Free Preview'}
               </p>
             </div>
           </div>
@@ -767,15 +766,6 @@ const AdminLectures = () => {
             </div>
 
             <div className="flex items-center justify-between">
-              <Label htmlFor="free-preview">Free Preview (Chapter 1)</Label>
-              <Switch
-                id="free-preview"
-                checked={formData.is_free_preview}
-                onCheckedChange={(checked) => setFormData({ ...formData, is_free_preview: checked })}
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
               <Label htmlFor="published">Publish immediately</Label>
               <Switch
                 id="published"
@@ -891,32 +881,53 @@ const AdminLectures = () => {
               <div className="space-y-2">
                 <Label>Existing Slides ({existingSlides.length})</Label>
                 <div className="grid grid-cols-4 gap-2 max-h-60 overflow-y-auto">
-                  {existingSlides.map((slide) => (
-                    <div
-                      key={slide.id}
-                      className="relative group aspect-video bg-muted rounded-lg overflow-hidden"
-                    >
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <Image className="w-6 h-6 text-muted-foreground" />
+                  {existingSlides.map((slide) => {
+                    const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+                    const url = `${API_BASE}/uploads/${slide.storage_path}`;
+                    return (
+                      <div
+                        key={slide.id}
+                        className="relative group aspect-video bg-muted rounded-lg overflow-hidden flex items-center justify-center"
+                      >
+                        <img
+                          src={url}
+                          alt={`Slide ${slide.slide_number}`}
+                          className="object-cover w-full h-full"
+                          onError={(e) => {
+                            // show a muted placeholder when image not found
+                            (e.target as HTMLImageElement).src = '';
+                            (e.target as HTMLImageElement).style.background = '#f3f4f6';
+                            (e.target as HTMLImageElement).style.objectFit = 'contain';
+                          }}
+                        />
+
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => window.open(url, '_blank')}
+                          >
+                            Open
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleDeleteSlide(slide)}
+                          >
+                            Delete
+                          </Button>
+                        </div>
+
+                        <span className="absolute bottom-1 left-1 text-xs text-white bg-black/50 px-1.5 py-0.5 rounded">
+                          #{slide.slide_number}
+                        </span>
                       </div>
-                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <Button
-                          variant="destructive"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => handleDeleteSlide(slide)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                      <span className="absolute bottom-1 left-1 text-xs text-white bg-black/50 px-1.5 py-0.5 rounded">
-                        #{slide.slide_number}
-                      </span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
+
           </div>
         </DialogContent>
       </Dialog>

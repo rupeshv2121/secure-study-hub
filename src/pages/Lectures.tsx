@@ -52,11 +52,26 @@ const Lectures = () => {
       const lecturesPath = subjectFilter !== 'all' ? `/lectures?subjectId=${encodeURIComponent(subjectFilter)}` : '/lectures';
       const lecturesRes = await apiFetch(lecturesPath);
       const lecturesBody = await lecturesRes.json();
-      let lecturesData = lecturesBody?.data || [];
+      let lecturesData = (lecturesBody?.data || []).map((l: any) => ({
+        ...l,
+        category_id: l.categoryId ?? l.category_id ?? l.subject?.category?.id ?? l.subject?.categoryId ?? l.subject?.category_id,
+        categories: l.categories ?? l.subject?.category,
+        subject_id: l.subjectId ?? l.subject_id ?? l.subject?.id,
+        subjects: l.subjects ?? l.subject,
+        created_at: l.createdAt ?? l.created_at,
+        view_count: l.viewCount ?? l.view_count ?? 0,
+        is_free_preview: l.isFreePreview ?? l.is_free_preview ?? false,
+      }));
 
       // Apply category filter client-side if needed
       if (categoryFilter !== 'all') {
-        lecturesData = lecturesData.filter((l: any) => l.category_id === categoryFilter || l.categories?.id === categoryFilter);
+        lecturesData = lecturesData.filter(
+          (l: any) =>
+            l.category_id === categoryFilter ||
+            l.categories?.id === categoryFilter ||
+            l.subject?.category?.id === categoryFilter ||
+            l.subject?.categoryId === categoryFilter,
+        );
       }
 
       setLectures(lecturesData);
@@ -182,8 +197,8 @@ const Lectures = () => {
                     id={lec.id}
                     title={lec.title}
                     description={lec.description}
-                    categoryName={lec.categories?.name || 'Uncategorized'}
-                    categoryColor={lec.categories?.color || null}
+                    categoryName={lec.categories?.name || lec.subject?.category?.name || 'Uncategorized'}
+                    categoryColor={lec.categories?.color || lec.subject?.category?.color || null}
                     viewCount={lec.view_count}
                     createdAt={lec.created_at}
                     isLocked={!canView}

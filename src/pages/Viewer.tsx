@@ -41,7 +41,11 @@ const Viewer = () => {
 
       const slidesRes = await apiFetch(`/lecture-slides?lectureId=${encodeURIComponent(String(id))}`);
       const slidesBody = await slidesRes.json();
-      setSlides(slidesBody?.data || []);
+      setSlides((slidesBody?.data || []).map((slide: any) => ({
+        ...slide,
+        storage_path: slide.storage_path ?? slide.storagePath,
+        slide_number: slide.slide_number ?? slide.slideNumber,
+      })));
     } catch (e) {
       console.error('Failed to fetch lecture or slides', e);
     } finally {

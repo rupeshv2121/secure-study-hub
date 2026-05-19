@@ -4,12 +4,12 @@ import Navbar from '@/components/Navbar';
 import SubjectCard from '@/components/SubjectCard';
 import { Button } from '@/components/ui/button';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -79,10 +79,22 @@ const Subjects = () => {
       setCategories(cats);
 
       if (categoryFilter !== 'all') {
-        subs = subs.filter((s: any) => s.category_id === categoryFilter || s.categories?.id === categoryFilter);
+        subs = subs.filter((s: any) =>
+          s.categoryId === categoryFilter ||
+          s.category_id === categoryFilter ||
+          s.category?.id === categoryFilter ||
+          s.categories?.id === categoryFilter,
+        );
       }
       subs = subs.filter((s: any) => s.is_active === true || s.isActive === true || s.is_active === undefined);
-      setSubjects(subs);
+      setSubjects(
+        subs.map((s: any) => ({
+          ...s,
+          name: s.name ?? s.title ?? '',
+          category_id: s.categoryId ?? s.category_id ?? s.category?.id ?? s.categories?.id,
+          categories: s.category ?? s.categories,
+        })),
+      );
 
       // Fetch user's purchases
       if (user) {
@@ -102,11 +114,21 @@ const Subjects = () => {
       const lecturesBody = await lecturesRes.json();
       const lectures = lecturesBody?.data || [];
       const counts = new Map<string, number>();
+      const priceMap = new Map<string, number>();
       lectures.forEach((l: any) => {
         const sid = l.subject_id || l.subjectId || l.subjects?.id;
-        if (sid) counts.set(sid, (counts.get(sid) || 0) + 1);
+        if (sid) {
+          counts.set(sid, (counts.get(sid) || 0) + 1);
+          const p = typeof l.price === 'number' ? l.price : parseFloat(l.price || 0) || 0;
+          const existing = priceMap.get(sid) || 0;
+          // show the maximum lecture price as subject price
+          if (p > existing) priceMap.set(sid, p);
+        }
       });
       setLectureCounts(counts);
+
+      // merge computed prices into subjects
+      setSubjects((prev) => prev.map((s) => ({ ...s, price: priceMap.get(s.id) ?? 0 })));
     } catch (e) {
       console.error('Failed to load subjects data', e);
     } finally {
@@ -115,11 +137,35 @@ const Subjects = () => {
   };
 
   const filteredSubjects = subjects.filter((sub) =>
-    sub.name.toLowerCase().includes(search.toLowerCase()) ||
+    (sub.name ?? '').toLowerCase().includes(search.toLowerCase()) ||
     sub.description?.toLowerCase().includes(search.toLowerCase())
   );
 
+  // Toggle this flag to disable real payment flows during testing
+  const PAYMENTS_ENABLED = false;
+  const TEST_PURCHASES_KEY = 'test_purchased_subjects';
+
+  const saveTestPurchase = (subjectId: string) => {
+    try {
+      const existing = JSON.parse(localStorage.getItem(TEST_PURCHASES_KEY) || '[]') as string[];
+      if (!existing.includes(subjectId)) {
+        existing.push(subjectId);
+        localStorage.setItem(TEST_PURCHASES_KEY, JSON.stringify(existing));
+      }
+    } catch {
+      localStorage.setItem(TEST_PURCHASES_KEY, JSON.stringify([subjectId]));
+    }
+  };
+
   const handlePurchase = (subjectId: string, price: number) => {
+    if (!PAYMENTS_ENABLED) {
+      // Bypass payment for testing: mark as purchased locally
+      setPurchasedSubjects((prev) => new Set(prev).add(subjectId));
+      saveTestPurchase(subjectId);
+      toast.success('Purchase bypassed for testing — access granted');
+      return;
+    }
+
     const subject = subjects.find(s => s.id === subjectId);
     if (subject) {
       setSelectedSubject(subject);

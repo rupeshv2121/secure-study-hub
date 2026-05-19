@@ -2,25 +2,25 @@ import apiFetch from '@/api/client';
 import CategoryCard from '@/components/CategoryCard';
 import Navbar from '@/components/Navbar';
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import type { IndexCategory as Category } from '@/interfaces/pages/index';
 import {
-  ArrowRight,
-  BookOpen,
-  CheckCircle2,
-  Eye,
-  FileText,
-  Loader2,
-  Lock,
-  Shield,
-  Star,
-  Users
+    ArrowRight,
+    BookOpen,
+    CheckCircle2,
+    Eye,
+    FileText,
+    Loader2,
+    Lock,
+    Shield,
+    Star,
+    Users
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -52,7 +52,7 @@ const Index = () => {
 
       const subjectCounts = new Map<string, number>();
       subjectsData.forEach((subject: any) => {
-        const cid = subject.category_id || subject.categoryId;
+        const cid = subject.categoryId || subject.category_id || subject.category?.id || subject.categories?.id;
         const count = subjectCounts.get(cid) || 0;
         subjectCounts.set(cid, count + 1);
       });

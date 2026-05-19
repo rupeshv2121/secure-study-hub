@@ -1,4 +1,5 @@
 import { getMe as apiGetMe, login as apiLogin, register as apiRegister } from '@/api/auth';
+import apiFetch from '@/api/client';
 import { supabase } from '@/integrations/supabase/client';
 import type { AuthContextType, Profile, Session, User } from '@/interfaces/auth';
 import React, { createContext, useContext, useEffect, useState } from 'react';
@@ -159,7 +160,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Fallback: call sync endpoint then login
         if (!token) {
           try {
-            await fetch('/api/auth/sync', {
+            await apiFetch('/auth/sync', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ email }),

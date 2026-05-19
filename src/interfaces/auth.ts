@@ -1,4 +1,13 @@
-export type User = { id: string; email?: string | null };
+export type User = {
+  id: string;
+  email?: string | null;
+  name?: string | null;
+  role?: string | null;
+  user_metadata?: {
+    phone_number?: string | null;
+    [key: string]: unknown;
+  } | null;
+};
 export type Session = { user?: User | null } | null;
 
 export interface Profile {

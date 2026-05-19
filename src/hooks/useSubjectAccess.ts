@@ -8,6 +8,19 @@ export const useSubjectAccess = () => {
     new Set(),
   );
   const [loading, setLoading] = useState(true);
+  const TEST_PURCHASES_KEY = "test_purchased_subjects";
+
+  const getLocalTestPurchases = () => {
+    try {
+      const raw = localStorage.getItem(TEST_PURCHASES_KEY);
+      const parsed = raw ? (JSON.parse(raw) as string[]) : [];
+      return new Set(
+        parsed.filter((item) => typeof item === "string" && item.length > 0),
+      );
+    } catch {
+      return new Set<string>();
+    }
+  };
 
   useEffect(() => {
     if (user) {
@@ -34,10 +47,15 @@ export const useSubjectAccess = () => {
           subjectIds.add(p.lecture.subjectId);
       }
 
+      const localTestPurchases = getLocalTestPurchases();
+      for (const subjectId of localTestPurchases) {
+        subjectIds.add(subjectId);
+      }
+
       setPurchasedSubjects(subjectIds);
     } catch (e) {
       console.error("Failed to fetch purchases", e);
-      setPurchasedSubjects(new Set());
+      setPurchasedSubjects(getLocalTestPurchases());
     }
     setLoading(false);
   };

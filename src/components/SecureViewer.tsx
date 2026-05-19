@@ -6,6 +6,25 @@ import { AlertTriangle, ChevronLeft, ChevronRight, Lock, Maximize, Minimize, Shi
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
+type SlidePathLike = {
+  slide_number?: number;
+  slideNumber?: number;
+  storage_path?: string;
+  storagePath?: string;
+};
+
+type FullscreenElementLike = HTMLDivElement & {
+  webkitRequestFullscreen?: () => Promise<void> | void;
+  msRequestFullscreen?: () => Promise<void> | void;
+};
+
+type DocumentWithFullscreenFallbacks = Document & {
+  webkitExitFullscreen?: () => Promise<void> | void;
+  msExitFullscreen?: () => Promise<void> | void;
+  webkitFullscreenElement?: Element | null;
+  msFullscreenElement?: Element | null;
+};
+
 const SecureViewer = ({ lectureId, slides }: SecureViewerProps) => {
   const { user } = useAuth();
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -19,10 +38,18 @@ const SecureViewer = ({ lectureId, slides }: SecureViewerProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageCache = useRef<Map<number, HTMLImageElement>>(new Map());
 
+  const resolveSlidePath = useCallback((slide: SlidePathLike | null | undefined) => {
+    return slide?.storage_path || slide?.storagePath || '';
+  }, []);
+
+  const resolveSlideNumber = useCallback((slide: SlidePathLike | null | undefined, fallbackIndex: number) => {
+    return slide?.slide_number ?? slide?.slideNumber ?? fallbackIndex + 1;
+  }, []);
+
   // Sort slides by slide_number
   const sortedSlides = useMemo(
-    () => [...slides].sort((a, b) => a.slide_number - b.slide_number),
-    [slides]
+    () => [...slides].sort((a, b) => resolveSlideNumber(a, 0) - resolveSlideNumber(b, 0)),
+    [slides, resolveSlideNumber],
   );
 
   // Security warning handler
@@ -31,8 +58,6 @@ const SecureViewer = ({ lectureId, slides }: SecureViewerProps) => {
     setWarningType(type);
     setTimeout(() => setWarningMessage(''), 3000);
   }, []);
-
-  // Use security protection hook
   useSecurityProtection({
     onSecurityWarning: (msg) => showSecurityWarning(msg, 'error'),
     onBlurChange: setIsBlurred,
@@ -40,6 +65,7 @@ const SecureViewer = ({ lectureId, slides }: SecureViewerProps) => {
 
   // Generate signed URLs for slides with short expiry
   const getSignedUrl = useCallback(async (storagePath: string, slideIndex: number) => {
+    if (!storagePath) return null;
     // Backend serves uploads under /uploads/:bucket/:file
     try {
       const signedUrl = `${API_BASE}/uploads/${storagePath}`;
@@ -123,14 +149,15 @@ const SecureViewer = ({ lectureId, slides }: SecureViewerProps) => {
       );
 
       for (const index of indicesToLoad) {
-        if (!slideUrls[index] && sortedSlides[index]) {
-          await getSignedUrl(sortedSlides[index].storage_path, index);
+        const storagePath = resolveSlidePath(sortedSlides[index]);
+        if (!slideUrls[index] && storagePath) {
+          await getSignedUrl(storagePath, index);
         }
       }
     };
 
     loadSlides();
-  }, [currentSlide, sortedSlides, slideUrls, getSignedUrl]);
+  }, [currentSlide, sortedSlides, slideUrls, getSignedUrl, resolveSlidePath]);
 
   // Render current slide to canvas when URL is available
   useEffect(() => {
@@ -142,13 +169,14 @@ const SecureViewer = ({ lectureId, slides }: SecureViewerProps) => {
   // Refresh signed URLs periodically (every 25 seconds to avoid expiry)
   useEffect(() => {
     const refreshInterval = setInterval(() => {
-      if (sortedSlides[currentSlide]) {
-        getSignedUrl(sortedSlides[currentSlide].storage_path, currentSlide);
+      const storagePath = resolveSlidePath(sortedSlides[currentSlide]);
+      if (storagePath) {
+        getSignedUrl(storagePath, currentSlide);
       }
     }, 25000);
 
     return () => clearInterval(refreshInterval);
-  }, [currentSlide, sortedSlides, getSignedUrl]);
+  }, [currentSlide, sortedSlides, getSignedUrl, resolveSlidePath]);
 
   // Navigation handlers
   const goToNextSlide = useCallback(() => {
@@ -183,23 +211,25 @@ const SecureViewer = ({ lectureId, slides }: SecureViewerProps) => {
   // Fullscreen handlers
   const toggleFullscreen = async () => {
     if (!viewerRef.current) return;
+    const fullscreenElement = viewerRef.current as FullscreenElementLike;
+    const documentWithFallbacks = document as DocumentWithFullscreenFallbacks;
 
     try {
       if (!isFullscreen) {
         if (viewerRef.current.requestFullscreen) {
           await viewerRef.current.requestFullscreen();
-        } else if ((viewerRef.current as any).webkitRequestFullscreen) {
-          await (viewerRef.current as any).webkitRequestFullscreen();
-        } else if ((viewerRef.current as any).msRequestFullscreen) {
-          await (viewerRef.current as any).msRequestFullscreen();
+        } else if (fullscreenElement.webkitRequestFullscreen) {
+          await fullscreenElement.webkitRequestFullscreen();
+        } else if (fullscreenElement.msRequestFullscreen) {
+          await fullscreenElement.msRequestFullscreen();
         }
       } else {
         if (document.exitFullscreen) {
           await document.exitFullscreen();
-        } else if ((document as any).webkitExitFullscreen) {
-          await (document as any).webkitExitFullscreen();
-        } else if ((document as any).msExitFullscreen) {
-          await (document as any).msExitFullscreen();
+        } else if (documentWithFallbacks.webkitExitFullscreen) {
+          await documentWithFallbacks.webkitExitFullscreen();
+        } else if (documentWithFallbacks.msExitFullscreen) {
+          await documentWithFallbacks.msExitFullscreen();
         }
       }
     } catch (error) {
@@ -210,10 +240,11 @@ const SecureViewer = ({ lectureId, slides }: SecureViewerProps) => {
   // Listen for fullscreen changes
   useEffect(() => {
     const handleFullscreenChange = () => {
+      const documentWithFallbacks = document as DocumentWithFullscreenFallbacks;
       setIsFullscreen(!!(
         document.fullscreenElement ||
-        (document as any).webkitFullscreenElement ||
-        (document as any).msFullscreenElement
+        documentWithFallbacks.webkitFullscreenElement ||
+        documentWithFallbacks.msFullscreenElement
       ));
     };
 
