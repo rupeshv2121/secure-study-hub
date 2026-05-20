@@ -1,10 +1,10 @@
+import apiFetch from '@/api/client';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSecurityProtection } from '@/hooks/useSecurityProtection';
 import type { SecureViewerProps } from '@/interfaces/secureviewer';
 import { AlertTriangle, ChevronLeft, ChevronRight, Lock, Maximize, Minimize, Shield, ZoomIn, ZoomOut } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
 type SlidePathLike = {
   slide_number?: number;
@@ -66,9 +66,15 @@ const SecureViewer = ({ lectureId, slides }: SecureViewerProps) => {
   // Generate signed URLs for slides with short expiry
   const getSignedUrl = useCallback(async (storagePath: string, slideIndex: number) => {
     if (!storagePath) return null;
-    // Backend serves uploads under /uploads/:bucket/:file
     try {
-      const signedUrl = `${API_BASE}/uploads/${storagePath}`;
+      const response = await apiFetch(`/storage/lecture-slides/signed-url?path=${encodeURIComponent(storagePath)}`);
+      const body = await response.json();
+
+      if (!response.ok || !body?.success || !body?.data?.signedUrl) {
+        throw new Error(body?.message || 'Failed to create signed URL');
+      }
+
+      const signedUrl = body.data.signedUrl as string;
       setSlideUrls((prev) => ({ ...prev, [slideIndex]: signedUrl }));
       return signedUrl;
     } catch (e) {

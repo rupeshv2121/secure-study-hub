@@ -3,39 +3,39 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { convertPdfToImages, getPdfPageCount, MAX_PDF_PAGES } from '@/utils/pdfToImages';
 import {
-    closestCenter,
-    DndContext,
-    DragEndEvent,
-    KeyboardSensor,
-    PointerSensor,
-    useSensor,
-    useSensors,
+  closestCenter,
+  DndContext,
+  DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
 } from '@dnd-kit/core';
 import {
-    arrayMove,
-    SortableContext,
-    sortableKeyboardCoordinates,
-    useSortable,
-    verticalListSortingStrategy,
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { AlertTriangle, Edit, Eye, EyeOff, File, FileText, GripVertical, Plus, Trash2, Upload } from 'lucide-react';
@@ -174,6 +174,7 @@ const AdminLectures = () => {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0, stage: '' });
   const [existingSlides, setExistingSlides] = useState<LectureSlide[]>([]);
+  const [slidePreviewUrls, setSlidePreviewUrls] = useState<Record<string, string>>({});
   const [selectedSubjectFilter, setSelectedSubjectFilter] = useState<string>('all');
   const [pdfWarning, setPdfWarning] = useState<{ show: boolean; totalPages: number; willProcess: number } | null>(null);
   const [pendingFiles, setPendingFiles] = useState<FileList | null>(null);
@@ -239,6 +240,44 @@ const AdminLectures = () => {
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadPreviewUrls = async () => {
+      if (existingSlides.length === 0) {
+        setSlidePreviewUrls({});
+        return;
+      }
+
+      const entries = await Promise.all(
+        existingSlides.map(async (slide) => {
+          try {
+            const res = await apiFetch(`/storage/lecture-slides/signed-url?path=${encodeURIComponent(slide.storage_path)}`);
+            const body = await res.json();
+
+            if (!res.ok || !body?.success || !body?.data?.signedUrl) {
+              return [slide.id, ''] as const;
+            }
+
+            return [slide.id, body.data.signedUrl as string] as const;
+          } catch {
+            return [slide.id, ''] as const;
+          }
+        }),
+      );
+
+      if (!cancelled) {
+        setSlidePreviewUrls(Object.fromEntries(entries.filter(([, url]) => url)));
+      }
+    };
+
+    loadPreviewUrls();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [existingSlides]);
 
   const resetForm = () => {
     setFormData({ title: '', description: '', category_id: '', subject_id: '', is_published: false, is_free_preview: false });
@@ -882,30 +921,35 @@ const AdminLectures = () => {
                 <Label>Existing Slides ({existingSlides.length})</Label>
                 <div className="grid grid-cols-4 gap-2 max-h-60 overflow-y-auto">
                   {existingSlides.map((slide) => {
-                    const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
-                    const url = `${API_BASE}/uploads/${slide.storage_path}`;
+                    const url = slidePreviewUrls[slide.id];
                     return (
                       <div
                         key={slide.id}
                         className="relative group aspect-video bg-muted rounded-lg overflow-hidden flex items-center justify-center"
                       >
-                        <img
-                          src={url}
-                          alt={`Slide ${slide.slide_number}`}
-                          className="object-cover w-full h-full"
-                          onError={(e) => {
-                            // show a muted placeholder when image not found
-                            (e.target as HTMLImageElement).src = '';
-                            (e.target as HTMLImageElement).style.background = '#f3f4f6';
-                            (e.target as HTMLImageElement).style.objectFit = 'contain';
-                          }}
-                        />
+                        {url ? (
+                          <img
+                            src={url}
+                            alt={`Slide ${slide.slide_number}`}
+                            className="object-cover w-full h-full"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = '';
+                              (e.target as HTMLImageElement).style.background = '#f3f4f6';
+                              (e.target as HTMLImageElement).style.objectFit = 'contain';
+                            }}
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground">
+                            Loading preview
+                          </div>
+                        )}
 
                         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => window.open(url, '_blank')}
+                            onClick={() => url && window.open(url, '_blank', 'noopener,noreferrer')}
+                            disabled={!url}
                           >
                             Open
                           </Button>
