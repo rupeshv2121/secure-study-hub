@@ -124,6 +124,14 @@ src/
    ```
 4. Open [http://localhost:5173](http://localhost:5173)
 
+## Deploying on Vercel
+
+Deploy the frontend as a separate Vercel project with the project root set to `secure-study-hub-frontend`.
+
+Set `VITE_API_URL` to the deployed backend URL so the app can reach the API outside local development.
+
+The included `vercel.json` keeps React Router routes working on refresh by rewriting unknown paths to `index.html`.
+
 ## 👤 User Roles
 
 | Role | Capabilities |

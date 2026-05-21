@@ -3,39 +3,39 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { convertPdfToImages, getPdfPageCount, MAX_PDF_PAGES } from '@/utils/pdfToImages';
 import {
-  closestCenter,
-  DndContext,
-  DragEndEvent,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
+    closestCenter,
+    DndContext,
+    DragEndEvent,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
 } from '@dnd-kit/core';
 import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    useSortable,
+    verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { AlertTriangle, Edit, Eye, EyeOff, File, FileText, GripVertical, Plus, Trash2, Upload } from 'lucide-react';
@@ -175,6 +175,7 @@ const AdminLectures = () => {
   const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0, stage: '' });
   const [existingSlides, setExistingSlides] = useState<LectureSlide[]>([]);
   const [slidePreviewUrls, setSlidePreviewUrls] = useState<Record<string, string>>({});
+  const [driveFileId, setDriveFileId] = useState('');
   const [selectedSubjectFilter, setSelectedSubjectFilter] = useState<string>('all');
   const [pdfWarning, setPdfWarning] = useState<{ show: boolean; totalPages: number; willProcess: number } | null>(null);
   const [pendingFiles, setPendingFiles] = useState<FileList | null>(null);
@@ -253,6 +254,16 @@ const AdminLectures = () => {
       const entries = await Promise.all(
         existingSlides.map(async (slide) => {
           try {
+            // Support Drive references stored as "drive:<id>"
+            if (slide.storage_path?.startsWith('drive:')) {
+              const fileId = slide.storage_path.split(':', 2)[1];
+              const res = await apiFetch(`/external/drive/${encodeURIComponent(fileId)}/stream`);
+              if (!res.ok) return [slide.id, ''] as const;
+              const blob = await res.blob();
+              const objectUrl = URL.createObjectURL(blob);
+              return [slide.id, objectUrl] as const;
+            }
+
             const res = await apiFetch(`/storage/lecture-slides/signed-url?path=${encodeURIComponent(slide.storage_path)}`);
             const body = await res.json();
 
@@ -571,6 +582,33 @@ const AdminLectures = () => {
     } catch (e) {
       console.error(e);
       setExistingSlides([]);
+    }
+  };
+
+  const handleAddDriveSlide = async () => {
+    if (!selectedLectureId || !driveFileId) return;
+    try {
+      const slideNumber = existingSlides.length + 1;
+      const res = await apiFetch('/lecture-slides', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lectureId: selectedLectureId, slideNumber, storagePath: `drive:${driveFileId}` }),
+      });
+      const body = await res.json();
+      if (!res.ok || !body?.success) {
+        toast.error('Failed to add Drive slide');
+        return;
+      }
+      // refresh slides
+      const listRes = await apiFetch(`/lecture-slides?lectureId=${encodeURIComponent(selectedLectureId)}`);
+      const listBody = await listRes.json();
+      const slides = (listBody?.data || []).map((s: any) => ({ id: s.id, slide_number: s.slideNumber ?? s.slide_number, storage_path: s.storagePath ?? s.storage_path }));
+      setExistingSlides(slides);
+      setDriveFileId('');
+      toast.success('Drive slide added');
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to add Drive slide');
     }
   };
 
@@ -914,6 +952,17 @@ const AdminLectures = () => {
                   </label>
                 </>
               )}
+            </div>
+
+            {/* Import from Google Drive */}
+            <div className="mt-4 flex items-center gap-2">
+              <Input
+                placeholder="Google Drive file ID (e.g. 1a2B3cD...)"
+                value={driveFileId}
+                onChange={(e) => setDriveFileId(e.target.value)}
+                disabled={uploading}
+              />
+              <Button onClick={handleAddDriveSlide} disabled={uploading || !driveFileId}>Add from Drive</Button>
             </div>
 
             {existingSlides.length > 0 && (

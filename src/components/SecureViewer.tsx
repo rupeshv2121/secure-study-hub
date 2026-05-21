@@ -29,6 +29,7 @@ const SecureViewer = ({ lectureId, slides }: SecureViewerProps) => {
   const { user } = useAuth();
   const [currentSlide, setCurrentSlide] = useState(0);
   const [slideUrls, setSlideUrls] = useState<Record<number, string>>({});
+  const [slideTypes, setSlideTypes] = useState<Record<number, 'pdf' | 'image'>>({});
   const [zoom, setZoom] = useState(1);
   const [isBlurred, setIsBlurred] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -67,6 +68,19 @@ const SecureViewer = ({ lectureId, slides }: SecureViewerProps) => {
   const getSignedUrl = useCallback(async (storagePath: string, slideIndex: number) => {
     if (!storagePath) return null;
     try {
+      // Support Drive paths stored as "drive:<fileId>" by fetching authenticated blob
+      if (storagePath.startsWith('drive:')) {
+        const fileId = storagePath.split(':', 2)[1];
+        const res = await apiFetch(`/external/drive/${encodeURIComponent(fileId)}/stream`);
+        if (!res.ok) throw new Error('Failed to fetch Drive file');
+        const blob = await res.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        // Store object URL and set slide URL. Mark type based on blob mime
+        setSlideUrls((prev) => ({ ...prev, [slideIndex]: objectUrl }));
+        setSlideTypes((prev) => ({ ...prev, [slideIndex]: blob.type === 'application/pdf' ? 'pdf' : 'image' }));
+        return objectUrl;
+      }
+
       const response = await apiFetch(`/storage/lecture-slides/signed-url?path=${encodeURIComponent(storagePath)}`);
       const body = await response.json();
 
@@ -76,12 +90,26 @@ const SecureViewer = ({ lectureId, slides }: SecureViewerProps) => {
 
       const signedUrl = body.data.signedUrl as string;
       setSlideUrls((prev) => ({ ...prev, [slideIndex]: signedUrl }));
+      // mark PDF by url if it looks like a PDF
+      const isPdf = String(signedUrl).toLowerCase().includes('.pdf') || String(storagePath).toLowerCase().endsWith('.pdf');
+      setSlideTypes((prev) => ({ ...prev, [slideIndex]: isPdf ? 'pdf' : 'image' }));
       return signedUrl;
     } catch (e) {
       console.error('Error building slide URL:', e);
       return null;
     }
   }, []);
+
+  // Cleanup any object URLs created for Drive blobs
+  useEffect(() => {
+    return () => {
+      Object.values(slideUrls).forEach((url) => {
+        try {
+          if (url?.startsWith('blob:')) URL.revokeObjectURL(url);
+        } catch {}
+      });
+    };
+  }, [slideUrls]);
 
   // Render slide to canvas (prevents direct image access)
   const renderSlideToCanvas = useCallback(
@@ -343,13 +371,22 @@ const SecureViewer = ({ lectureId, slides }: SecureViewerProps) => {
           className="absolute inset-0 flex items-center justify-center"
           style={{ transform: `scale(${zoom})`, transformOrigin: 'center' }}
         >
-          <canvas
-            ref={canvasRef}
-            className="max-w-full max-h-full secure-canvas"
-            style={{
-              pointerEvents: 'none',
-            }}
-          />
+          {slideTypes[currentSlide] === 'pdf' ? (
+            <iframe
+              title={`slide-${currentSlide}`}
+              src={slideUrls[currentSlide]}
+              className="max-w-full max-h-full secure-canvas"
+              style={{ border: 'none', width: '100%', height: '100%' }}
+            />
+          ) : (
+            <canvas
+              ref={canvasRef}
+              className="max-w-full max-h-full secure-canvas"
+              style={{
+                pointerEvents: 'none',
+              }}
+            />
+          )}
         </div>
 
         {/* Loading indicator */}
