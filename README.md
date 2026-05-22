@@ -128,7 +128,7 @@ src/
 
 Deploy the frontend as a separate Vercel project with the project root set to `secure-study-hub-frontend`.
 
-Set `VITE_API_URL` to the deployed backend URL so the app can reach the API outside local development.
+Set `VITE_API_URL` to the deployed backend URL so the app can reach the API outside local development. If the frontend is deployed on Vercel, update the Vercel project environment variable as well and redeploy; changing only the repo files will not change the production bundle.
 
 The included `vercel.json` keeps React Router routes working on refresh by rewriting unknown paths to `index.html`.
 
