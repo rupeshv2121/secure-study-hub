@@ -1,7 +1,13 @@
-const API_BASE = new URL((import.meta.env.VITE_API_URL || "http://localhost:4000").replace(/\/+$/, ""));
+const API_BASE = new URL(
+  (import.meta.env.VITE_API_URL || "http://localhost:4000").replace(/\/+$/, ""),
+);
 
 const buildUrl = (path: string) => {
-  const normalizedPath = path.startsWith("/api") ? path : path.startsWith("/") ? `/api${path}` : `/api/${path}`;
+  const normalizedPath = path.startsWith("/api")
+    ? path
+    : path.startsWith("/")
+      ? `/api${path}`
+      : `/api/${path}`;
   return new URL(normalizedPath, API_BASE).toString();
 };
 
