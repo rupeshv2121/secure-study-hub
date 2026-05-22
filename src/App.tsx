@@ -1,18 +1,18 @@
-import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
+import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
-import Index from "./pages/Index";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
+import Admin from "./pages/Admin";
 import Auth from "./pages/Auth";
+import Index from "./pages/Index";
+import MyPurchases from "./pages/MyPurchases";
+import NotFound from "./pages/NotFound";
+import Profile from "./pages/Profile";
 import Lectures from "./pages/Lectures";
 import Subjects from "./pages/Subjects";
-import MyPurchases from "./pages/MyPurchases";
-import Profile from "./pages/Profile";
 import Viewer from "./pages/Viewer";
-import Admin from "./pages/Admin";
-import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
@@ -26,8 +26,8 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
-            <Route path="/lectures" element={<Lectures />} />
             <Route path="/subjects" element={<Subjects />} />
+            <Route path="/lectures" element={<Lectures />} />
             <Route path="/my-purchases" element={<MyPurchases />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/viewer/:id" element={<Viewer />} />

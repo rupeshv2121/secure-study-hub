@@ -8,54 +8,43 @@ export const useSubjectAccess = () => {
     new Set(),
   );
   const [loading, setLoading] = useState(true);
-  const TEST_PURCHASES_KEY = "test_purchased_subjects";
-
-  const getLocalTestPurchases = () => {
-    try {
-      const raw = localStorage.getItem(TEST_PURCHASES_KEY);
-      const parsed = raw ? (JSON.parse(raw) as string[]) : [];
-      return new Set(
-        parsed.filter((item) => typeof item === "string" && item.length > 0),
-      );
-    } catch {
-      return new Set<string>();
-    }
-  };
 
   useEffect(() => {
+    setPurchasedSubjects(new Set());
+    setLoading(true);
+
     if (user) {
-      fetchPurchases();
+      fetchPurchases(user.id);
     } else {
       setPurchasedSubjects(new Set());
       setLoading(false);
     }
-  }, [user]);
+  }, [user?.id]);
 
-  const fetchPurchases = async () => {
-    if (!user) return;
+  const fetchPurchases = async (userId: string) => {
     try {
       const res = await apiFetch("/purchases");
       const body = await res.json();
       const purchases = body?.data || [];
 
-      // purchases may include lecture or subject info; normalize to subject ids
+      // Purchases may include lecture or subject info; only approved entries unlock content.
       const subjectIds = new Set<string>();
       for (const p of purchases) {
+        if (p.userId && p.userId !== userId) continue;
+        const status = String(p.status || "").toUpperCase();
+        const isApproved = status === "APPROVED" || status === "COMPLETED";
+        if (!isApproved) continue;
+
         if (p.subjectId) subjectIds.add(p.subjectId);
-        else if (p.subjects && p.subjects.id) subjectIds.add(p.subjects.id);
+        else if (p.subject && p.subject.id) subjectIds.add(p.subject.id);
         else if (p.lecture && p.lecture.subjectId)
           subjectIds.add(p.lecture.subjectId);
-      }
-
-      const localTestPurchases = getLocalTestPurchases();
-      for (const subjectId of localTestPurchases) {
-        subjectIds.add(subjectId);
       }
 
       setPurchasedSubjects(subjectIds);
     } catch (e) {
       console.error("Failed to fetch purchases", e);
-      setPurchasedSubjects(getLocalTestPurchases());
+      setPurchasedSubjects(new Set());
     }
     setLoading(false);
   };
@@ -82,7 +71,9 @@ export const useSubjectAccess = () => {
   };
 
   const refreshPurchases = () => {
-    fetchPurchases();
+    if (user) {
+      fetchPurchases(user.id);
+    }
   };
 
   return {

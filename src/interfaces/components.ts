@@ -32,7 +32,7 @@ export interface SubjectCardProps {
   price: number;
   categoryName: string;
   categoryColor: string | null;
-  isPurchased: boolean;
+  purchaseState: "available" | "pending" | "approved";
   lectureCount: number;
   onPurchase: (subjectId: string, price: number) => void;
   onView: (subjectId: string) => void;

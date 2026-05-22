@@ -4,21 +4,26 @@ import Navbar from '@/components/Navbar';
 import SubjectCard from '@/components/SubjectCard';
 import { Button } from '@/components/ui/button';
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/contexts/AuthContext';
 import type { CategoryPageItem as Category, SubjectPageItem as Subject } from '@/interfaces/pages/subjects';
-import { CheckCircle, IndianRupee, Loader2, Search } from 'lucide-react';
+import { AlertCircle, CheckCircle, IndianRupee, Loader2, QrCode, Search, Upload } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
+
+  const paymentQrImage = import.meta.env.VITE_PAYMENT_QR_IMAGE_URL as string | undefined;
+  const paymentUpiId = import.meta.env.VITE_PAYMENT_UPI_ID as string | undefined;
 
 
 const Subjects = () => {
@@ -27,7 +32,8 @@ const Subjects = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [purchasedSubjects, setPurchasedSubjects] = useState<Set<string>>(new Set());
+  const [approvedSubjects, setApprovedSubjects] = useState<Set<string>>(new Set());
+  const [pendingSubjects, setPendingSubjects] = useState<Set<string>>(new Set());
   const [lectureCounts, setLectureCounts] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -36,6 +42,8 @@ const Subjects = () => {
   const [purchaseDialogOpen, setPurchaseDialogOpen] = useState(false);
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
   const [purchasing, setPurchasing] = useState(false);
+  const [paymentScreenshot, setPaymentScreenshot] = useState<File | null>(null);
+  const [paymentNote, setPaymentNote] = useState('');
 
   const categoryFilter = searchParams.get('category') || 'all';
   const selectedCategoryId = searchParams.get('category');
@@ -48,10 +56,13 @@ const Subjects = () => {
   }, [user, authLoading, navigate]);
 
   useEffect(() => {
+    setApprovedSubjects(new Set());
+    setPendingSubjects(new Set());
+
     if (user) {
       fetchData();
     }
-  }, [user, categoryFilter]);
+  }, [user?.id, categoryFilter]);
 
   useEffect(() => {
     // Update selected category name when categories are loaded
@@ -69,6 +80,7 @@ const Subjects = () => {
 
   const fetchData = async () => {
     setLoading(true);
+    const activeUserId = user?.id;
     try {
       const [catsRes, subsRes] = await Promise.all([apiFetch('/categories'), apiFetch('/subjects')]);
       const catsBody = await catsRes.json();
@@ -97,16 +109,25 @@ const Subjects = () => {
       );
 
       // Fetch user's purchases
-      if (user) {
+      if (activeUserId) {
         const purchasesRes = await apiFetch('/purchases');
         const purchasesBody = await purchasesRes.json();
         const purchases = purchasesBody?.data || [];
-        const purchased = new Set<string>();
+        const approved = new Set<string>();
+        const pending = new Set<string>();
         purchases.forEach((p: any) => {
-          const sid = p.subjectId || p.subjects?.id || p.lecture?.subjectId;
-          if (sid) purchased.add(sid);
+          if (p.userId && p.userId !== activeUserId) return;
+          const sid = p.subjectId || p.subject?.id || p.lecture?.subjectId;
+          if (!sid) return;
+          const status = String(p.status || '').toUpperCase();
+          if (status === 'APPROVED' || status === 'COMPLETED') {
+            approved.add(sid);
+          } else if (status === 'PENDING') {
+            pending.add(sid);
+          }
         });
-        setPurchasedSubjects(purchased);
+        setApprovedSubjects(approved);
+        setPendingSubjects(pending);
       }
 
       // Lecture counts per subject
@@ -141,57 +162,84 @@ const Subjects = () => {
     sub.description?.toLowerCase().includes(search.toLowerCase())
   );
 
-  // Toggle this flag to disable real payment flows during testing
-  const PAYMENTS_ENABLED = false;
-  const TEST_PURCHASES_KEY = 'test_purchased_subjects';
-
-  const saveTestPurchase = (subjectId: string) => {
-    try {
-      const existing = JSON.parse(localStorage.getItem(TEST_PURCHASES_KEY) || '[]') as string[];
-      if (!existing.includes(subjectId)) {
-        existing.push(subjectId);
-        localStorage.setItem(TEST_PURCHASES_KEY, JSON.stringify(existing));
-      }
-    } catch {
-      localStorage.setItem(TEST_PURCHASES_KEY, JSON.stringify([subjectId]));
-    }
-  };
-
   const handlePurchase = (subjectId: string, price: number) => {
-    if (!PAYMENTS_ENABLED) {
-      // Bypass payment for testing: mark as purchased locally
-      setPurchasedSubjects((prev) => new Set(prev).add(subjectId));
-      saveTestPurchase(subjectId);
-      toast.success('Purchase bypassed for testing — access granted');
+    if (approvedSubjects.has(subjectId)) {
+      toast.info('This subject is already approved.');
+      return;
+    }
+
+    if (pendingSubjects.has(subjectId)) {
+      toast.info('Your payment proof is already under review.');
       return;
     }
 
     const subject = subjects.find(s => s.id === subjectId);
     if (subject) {
       setSelectedSubject(subject);
+      setPaymentScreenshot(null);
+      setPaymentNote('');
       setPurchaseDialogOpen(true);
     }
   };
 
   const confirmPurchase = async () => {
     if (!selectedSubject || !user) return;
-    
+    if (!paymentScreenshot) {
+      toast.error('Please upload the payment screenshot.');
+      return;
+    }
+
     setPurchasing(true);
-    
-    // Payment integration required - direct inserts are blocked for security
-    // This should integrate with a payment gateway (Stripe/Razorpay) via edge function
-    toast.info('Payment integration coming soon. Please contact support to complete your purchase.');
+
+    try {
+      const formData = new FormData();
+      formData.append('subjectId', selectedSubject.id);
+      formData.append('amount', String(selectedSubject.price || 0));
+      formData.append('currency', 'INR');
+      if (paymentNote.trim()) {
+        formData.append('note', paymentNote.trim());
+      }
+      formData.append('screenshot', paymentScreenshot);
+
+      const res = await apiFetch('/purchases', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const body = await res.json();
+      if (!res.ok) {
+        throw new Error(body?.message || 'Failed to submit payment proof');
+      }
+
+      const subjectId = body?.data?.subjectId || selectedSubject.id;
+      setPendingSubjects((prev) => new Set(prev).add(subjectId));
+      setPurchaseDialogOpen(false);
+      setSelectedSubject(null);
+      setPaymentScreenshot(null);
+      setPaymentNote('');
+      toast.success('Payment proof submitted for admin review.');
+    } catch (error) {
+      console.error('Failed to submit payment proof', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to submit payment proof');
+    } finally {
+      setPurchasing(false);
+    }
+  };
+
+  const closePurchaseDialog = () => {
+    if (purchasing) return;
     setPurchaseDialogOpen(false);
-    
-    setPurchasing(false);
+    setSelectedSubject(null);
+    setPaymentScreenshot(null);
+    setPaymentNote('');
   };
 
   const handleViewLectures = (subjectId: string) => {
-    const params = new URLSearchParams();
-    params.set('subject', subjectId);
+    const params = new URLSearchParams({ subject: subjectId });
     if (categoryFilter !== 'all') {
       params.set('category', categoryFilter);
     }
+
     navigate(`/lectures?${params.toString()}`);
   };
 
@@ -270,7 +318,7 @@ const Subjects = () => {
                   price={sub.price}
                   categoryName={sub.categories?.name || 'Uncategorized'}
                   categoryColor={sub.categories?.color || null}
-                  isPurchased={purchasedSubjects.has(sub.id)}
+                  purchaseState={approvedSubjects.has(sub.id) ? 'approved' : pendingSubjects.has(sub.id) ? 'pending' : 'available'}
                   lectureCount={lectureCounts.get(sub.id) || 0}
                   onPurchase={handlePurchase}
                   onView={handleViewLectures}
@@ -285,60 +333,113 @@ const Subjects = () => {
         )}
       </main>
 
-      {/* Purchase Confirmation Dialog */}
-      <Dialog open={purchaseDialogOpen} onOpenChange={setPurchaseDialogOpen}>
-        <DialogContent>
+      {/* Purchase Request Dialog */}
+      <Dialog open={purchaseDialogOpen} onOpenChange={(open) => (open ? setPurchaseDialogOpen(true) : closePurchaseDialog())}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Confirm Purchase</DialogTitle>
+            <DialogTitle>Send Payment Proof</DialogTitle>
             <DialogDescription>
-              You are about to purchase access to this subject.
+              Pay using the QR code below, upload the screenshot, and we will ask admin to verify it before access is unlocked.
             </DialogDescription>
           </DialogHeader>
           
           {selectedSubject && (
-            <div className="py-4">
-              <div className="p-4 rounded-lg bg-muted">
-                <h3 className="font-semibold text-lg mb-1">{selectedSubject.name}</h3>
-                {selectedSubject.description && (
-                  <p className="text-sm text-muted-foreground mb-3">{selectedSubject.description}</p>
-                )}
-                <div className="flex items-center gap-2 text-2xl font-bold text-primary">
-                  <IndianRupee className="w-6 h-6" />
-                  {selectedSubject.price}
+            <div className="py-3 space-y-4">
+              <div className="grid gap-3 md:grid-cols-[1.2fr_0.8fr]">
+                <div className="p-3 rounded-xl border bg-muted/40">
+                  <h3 className="font-semibold text-lg mb-1">{selectedSubject.name}</h3>
+                  {selectedSubject.description && (
+                    <p className="text-sm text-muted-foreground mb-3">{selectedSubject.description}</p>
+                  )}
+                  <div className="flex items-center gap-2 text-2xl font-bold text-primary">
+                    <IndianRupee className="w-6 h-6" />
+                    {selectedSubject.price}
+                  </div>
+                  <p className="mt-3 text-sm text-muted-foreground">
+                    After verification, admin will approve this subject and unlock all lectures.
+                  </p>
+                </div>
+                <div className="p-3 rounded-xl border bg-background flex flex-col items-center justify-center text-center gap-2">
+                  <div className="w-36 h-36 rounded-2xl border bg-muted/30 flex items-center justify-center overflow-hidden">
+                    {paymentQrImage ? (
+                      <img src={paymentQrImage} alt="Payment QR code" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="px-4">
+                        <QrCode className="w-12 h-12 text-muted-foreground mx-auto mb-2" />
+                        <p className="text-xs text-muted-foreground">
+                          Set VITE_PAYMENT_QR_IMAGE_URL to show your QR image.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  {paymentUpiId && (
+                    <p className="text-xs text-muted-foreground">
+                      UPI ID: <span className="font-medium text-foreground">{paymentUpiId}</span>
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground max-w-xs">
+                    Make the payment, then upload the receipt screenshot below.
+                  </p>
                 </div>
               </div>
-              
-              <div className="mt-4 space-y-2 text-sm text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-green-500" />
-                  Lifetime access to all lectures
+
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label htmlFor="paymentScreenshot">Payment screenshot</Label>
+                  <Input
+                    id="paymentScreenshot"
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setPaymentScreenshot(e.target.files?.[0] || null)}
+                  />
+                  {paymentScreenshot && (
+                    <p className="text-xs text-muted-foreground">Selected file: {paymentScreenshot.name}</p>
+                  )}
                 </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-green-500" />
-                  Secure, view-only content
+
+                <div className="space-y-2">
+                  <Label htmlFor="paymentNote">Note for admin</Label>
+                  <Textarea
+                    id="paymentNote"
+                    value={paymentNote}
+                    onChange={(e) => setPaymentNote(e.target.value)}
+                    placeholder="Transaction ID, payment time, or any extra detail"
+                    rows={3}
+                  />
                 </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-green-500" />
-                  One-time payment, no subscription
+
+                <div className="rounded-xl border border-dashed p-3 text-sm text-muted-foreground space-y-1.5">
+                  <div className="flex items-center gap-2 text-foreground font-medium">
+                    <AlertCircle className="w-4 h-4 text-primary" />
+                    Before submitting
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-500" />
+                    Admin reviews the screenshot manually.
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-500" />
+                    Access is unlocked only after approval.
+                  </div>
                 </div>
               </div>
             </div>
           )}
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPurchaseDialogOpen(false)} disabled={purchasing}>
+            <Button variant="outline" onClick={closePurchaseDialog} disabled={purchasing}>
               Cancel
             </Button>
             <Button onClick={confirmPurchase} disabled={purchasing} className="gap-2">
               {purchasing ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Processing...
+                  Submitting...
                 </>
               ) : (
                 <>
-                  <IndianRupee className="w-4 h-4" />
-                  Confirm Purchase
+                  <Upload className="w-4 h-4" />
+                  Submit Proof
                 </>
               )}
             </Button>

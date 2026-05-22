@@ -1,14 +1,15 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
-import Navbar from '@/components/Navbar';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { FolderOpen, FileText, BarChart3, BookOpen } from 'lucide-react';
 import BackButton from '@/components/BackButton';
+import Navbar from '@/components/Navbar';
 import AdminCategories from '@/components/admin/AdminCategories';
 import AdminLectures from '@/components/admin/AdminLectures';
-import AdminSubjects from '@/components/admin/AdminSubjects';
+import AdminPurchases from '@/components/admin/AdminPurchases';
 import AdminStats from '@/components/admin/AdminStats';
+import AdminSubjects from '@/components/admin/AdminSubjects';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useAuth } from '@/contexts/AuthContext';
+import { BarChart3, BookOpen, FileText, FolderOpen } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 const Admin = () => {
   const { user, isAdmin, loading } = useAuth();
@@ -45,7 +46,7 @@ const Admin = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full max-w-lg grid-cols-4">
+          <TabsList className="grid w-full max-w-2xl grid-cols-5">
             <TabsTrigger value="lectures" className="gap-2">
               <FileText className="w-4 h-4" />
               <span className="hidden sm:inline">Lectures</span>
@@ -57,6 +58,10 @@ const Admin = () => {
             <TabsTrigger value="categories" className="gap-2">
               <FolderOpen className="w-4 h-4" />
               <span className="hidden sm:inline">Categories</span>
+            </TabsTrigger>
+            <TabsTrigger value="purchases" className="gap-2">
+              <BookOpen className="w-4 h-4" />
+              <span className="hidden sm:inline">Purchases</span>
             </TabsTrigger>
             <TabsTrigger value="stats" className="gap-2">
               <BarChart3 className="w-4 h-4" />
@@ -74,6 +79,10 @@ const Admin = () => {
 
           <TabsContent value="categories" className="space-y-6">
             <AdminCategories />
+          </TabsContent>
+
+          <TabsContent value="purchases" className="space-y-6">
+            <AdminPurchases />
           </TabsContent>
 
           <TabsContent value="stats" className="space-y-6">

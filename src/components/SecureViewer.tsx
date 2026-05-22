@@ -43,6 +43,18 @@ const SecureViewer = ({ lectureId, slides }: SecureViewerProps) => {
     return slide?.storage_path || slide?.storagePath || '';
   }, []);
 
+  const extractDriveFileId = useCallback((value: string) => {
+    const input = value.trim();
+    if (!input) return '';
+
+    const driveMatch = input.match(/(?:drive:|\/d\/|id=)([a-zA-Z0-9_-]{10,})/);
+    if (driveMatch?.[1]) return driveMatch[1];
+
+    if (/^[a-zA-Z0-9_-]{10,}$/.test(input)) return input;
+
+    return input;
+  }, []);
+
   const resolveSlideNumber = useCallback((slide: SlidePathLike | null | undefined, fallbackIndex: number) => {
     return slide?.slide_number ?? slide?.slideNumber ?? fallbackIndex + 1;
   }, []);
@@ -70,7 +82,7 @@ const SecureViewer = ({ lectureId, slides }: SecureViewerProps) => {
     try {
       // Support Drive paths stored as "drive:<fileId>" by fetching authenticated blob
       if (storagePath.startsWith('drive:')) {
-        const fileId = storagePath.split(':', 2)[1];
+        const fileId = extractDriveFileId(storagePath);
         const res = await apiFetch(`/external/drive/${encodeURIComponent(fileId)}/stream`);
         if (!res.ok) throw new Error('Failed to fetch Drive file');
         const blob = await res.blob();
@@ -98,7 +110,7 @@ const SecureViewer = ({ lectureId, slides }: SecureViewerProps) => {
       console.error('Error building slide URL:', e);
       return null;
     }
-  }, []);
+  }, [extractDriveFileId]);
 
   // Cleanup any object URLs created for Drive blobs
   useEffect(() => {

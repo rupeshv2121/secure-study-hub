@@ -2,25 +2,25 @@ import apiFetch from '@/api/client';
 import CategoryCard from '@/components/CategoryCard';
 import Navbar from '@/components/Navbar';
 import {
-    Accordion,
-    AccordionContent,
-    AccordionItem,
-    AccordionTrigger,
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import type { IndexCategory as Category } from '@/interfaces/pages/index';
 import {
-    ArrowRight,
-    BookOpen,
-    CheckCircle2,
-    Eye,
-    FileText,
-    Loader2,
-    Lock,
-    Shield,
-    Star,
-    Users
+  ArrowRight,
+  BookOpen,
+  CheckCircle2,
+  Eye,
+  FileText,
+  Loader2,
+  Lock,
+  Shield,
+  Star,
+  Users
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -520,7 +520,7 @@ const Index = () => {
             <h1 className="text-3xl font-bold text-foreground mb-2">
               Welcome back{user.email ? `, ${user.email.split('@')[0]}` : ''}!
             </h1>
-            <p className="text-muted-foreground">Browse lecture categories below</p>
+            <p className="text-muted-foreground">Browse categories below</p>
           </div>
 
           {loadingCategories ? (

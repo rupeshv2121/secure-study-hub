@@ -5,10 +5,34 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
-import type { LectureMini as Lecture, Purchase } from '@/interfaces/pages/mypurchases';
-import { BookOpen, Calendar, ChevronRight, Loader2, Package } from 'lucide-react';
+import type { Purchase } from '@/interfaces/pages/mypurchases';
+import { Calendar, Loader2, Package, ScanSearch, ShieldCheck, XCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+
+const getStatusLabel = (status: Purchase['status']) => {
+  switch (status) {
+    case 'APPROVED':
+    case 'COMPLETED':
+      return 'Approved';
+    case 'REJECTED':
+      return 'Rejected';
+    default:
+      return 'Pending review';
+  }
+};
+
+const getStatusTone = (status: Purchase['status']) => {
+  switch (status) {
+    case 'APPROVED':
+    case 'COMPLETED':
+      return 'default';
+    case 'REJECTED':
+      return 'destructive';
+    default:
+      return 'secondary';
+  }
+};
 
 
 const MyPurchases = () => {
@@ -16,9 +40,6 @@ const MyPurchases = () => {
   const navigate = useNavigate();
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [loading, setLoading] = useState(true);
-  const [expandedSubject, setExpandedSubject] = useState<string | null>(null);
-  const [subjectLectures, setSubjectLectures] = useState<Record<string, Lecture[]>>({});
-  const [loadingLectures, setLoadingLectures] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -27,13 +48,16 @@ const MyPurchases = () => {
   }, [user, authLoading, navigate]);
 
   useEffect(() => {
+    setPurchases([]);
+
     if (user) {
       fetchPurchases();
     }
-  }, [user]);
+  }, [user?.id]);
 
   const fetchPurchases = async () => {
     try {
+      const currentUserId = user?.id;
       const res = await apiFetch('/purchases');
       const body = await res.json();
       const data = body?.data || [];
@@ -45,14 +69,30 @@ const MyPurchases = () => {
       const subjectMap = new Map(subjects.map((s: any) => [s.id, s]));
 
       const normalized = data.map((p: any) => {
-        const subjectId = p.subjectId || p.subjects?.id || p.lecture?.subjectId;
+        if (currentUserId && p.userId && p.userId !== currentUserId) {
+          return null;
+        }
+        const subjectId = p.subjectId || p.subject?.id || p.lecture?.subjectId;
+        const subject = subjectMap.get(subjectId) || p.subject || p.lecture?.subject || null;
         return {
           id: p.id,
+          status: String(p.status || 'PENDING').toUpperCase(),
           purchased_at: p.createdAt || p.purchased_at || p.created_at,
           amount_paid: p.amount || p.amount_paid || 0,
-          subjects: subjectMap.get(subjectId) || null,
+          screenshot_url: p.screenshotUrl || p.screenshot_url || null,
+          admin_note: p.adminNote || p.admin_note || null,
+          reviewed_at: p.reviewedAt || p.reviewed_at || null,
+          reviewed_by: p.reviewedBy || p.reviewed_by || null,
+          subjects: subject
+            ? {
+                id: subject.id,
+                name: subject.name || subject.title || 'Subject',
+                description: subject.description || null,
+                categories: subject.categories || subject.category || null,
+              }
+            : null,
         };
-      });
+          }).filter(Boolean) as Purchase[];
 
       setPurchases(normalized);
     } catch (e) {
@@ -60,26 +100,6 @@ const MyPurchases = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const fetchLecturesForSubject = async (subjectId: string) => {
-    if (subjectLectures[subjectId]) {
-      setExpandedSubject(expandedSubject === subjectId ? null : subjectId);
-      return;
-    }
-
-    setLoadingLectures(subjectId);
-    setExpandedSubject(subjectId);
-
-    try {
-      const res = await apiFetch(`/lectures?subjectId=${encodeURIComponent(subjectId)}`);
-      const body = await res.json();
-      const data = body?.data || [];
-      setSubjectLectures((prev) => ({ ...prev, [subjectId]: data }));
-    } catch (e) {
-      console.error('Failed to fetch lectures for subject', e);
-    }
-    setLoadingLectures(null);
   };
 
   const formatDate = (dateStr: string) => {
@@ -107,7 +127,7 @@ const MyPurchases = () => {
           <BackButton to="/" label="Back to Home" className="mb-4" />
           <h1 className="text-3xl font-bold text-foreground mb-2">My Purchases</h1>
           <p className="text-muted-foreground">
-            Access all subjects you've purchased with their lectures
+            Track your payment proofs and see when access has been approved
           </p>
         </div>
 
@@ -119,7 +139,7 @@ const MyPurchases = () => {
           <Card className="border-dashed">
             <CardContent className="flex flex-col items-center justify-center py-12">
               <Package className="w-12 h-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground mb-4">You haven't purchased any subjects yet.</p>
+              <p className="text-muted-foreground mb-4">You haven't submitted any purchase requests yet.</p>
               <Button onClick={() => navigate('/subjects')}>Browse Subjects</Button>
             </CardContent>
           </Card>
@@ -131,14 +151,11 @@ const MyPurchases = () => {
                 className="animate-slide-up overflow-hidden"
                 style={{ animationDelay: `${index * 0.05}s` }}
               >
-                <CardHeader
-                  className="cursor-pointer hover:bg-muted/50 transition-colors"
-                  onClick={() => purchase.subjects && fetchLecturesForSubject(purchase.subjects.id)}
-                >
+                <CardHeader>
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <CardTitle className="text-lg">{purchase.subjects?.name}</CardTitle>
+                        <CardTitle className="text-lg">{purchase.subjects?.name || 'Subject purchase'}</CardTitle>
                         {purchase.subjects?.categories && (
                           <Badge
                             variant="secondary"
@@ -152,6 +169,9 @@ const MyPurchases = () => {
                             {purchase.subjects.categories.name}
                           </Badge>
                         )}
+                        <Badge variant={getStatusTone(purchase.status)}>
+                          {getStatusLabel(purchase.status)}
+                        </Badge>
                       </div>
                       <div className="flex items-center gap-4 text-sm text-muted-foreground">
                         <span className="flex items-center gap-1">
@@ -161,61 +181,47 @@ const MyPurchases = () => {
                         <span>₹{purchase.amount_paid}</span>
                       </div>
                     </div>
-                    <ChevronRight
-                      className={`w-5 h-5 text-muted-foreground transition-transform ${
-                        expandedSubject === purchase.subjects?.id ? 'rotate-90' : ''
-                      }`}
-                    />
                   </div>
                 </CardHeader>
 
-                {expandedSubject === purchase.subjects?.id && (
-                  <CardContent className="border-t bg-muted/30">
-                    {loadingLectures === purchase.subjects?.id ? (
-                      <div className="flex justify-center py-4">
-                        <Loader2 className="w-5 h-5 animate-spin text-primary" />
-                      </div>
-                    ) : (
-                      <div className="space-y-2 py-2">
-                        {subjectLectures[purchase.subjects?.id || '']?.length === 0 ? (
-                          <p className="text-sm text-muted-foreground text-center py-4">
-                            No lectures available for this subject yet.
-                          </p>
+                <CardContent className="border-t bg-muted/30 space-y-4">
+                  <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-start">
+                    <div className="space-y-2 text-sm text-muted-foreground">
+                      <p className="flex items-center gap-2 text-foreground font-medium">
+                        {purchase.status === 'REJECTED' ? (
+                          <XCircle className="w-4 h-4 text-red-500" />
+                        ) : purchase.status === 'APPROVED' || purchase.status === 'COMPLETED' ? (
+                          <ShieldCheck className="w-4 h-4 text-green-500" />
                         ) : (
-                          subjectLectures[purchase.subjects?.id || '']?.map((lecture, idx) => (
-                            <div
-                              key={lecture.id}
-                              className="flex items-center justify-between p-3 rounded-lg bg-background hover:bg-accent transition-colors cursor-pointer"
-                              onClick={() => navigate(`/viewer/${lecture.id}`)}
-                            >
-                              <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-sm font-medium">
-                                  {idx + 1}
-                                </div>
-                                <div>
-                                  <p className="font-medium text-foreground">{lecture.title}</p>
-                                  {lecture.description && (
-                                    <p className="text-sm text-muted-foreground line-clamp-1">
-                                      {lecture.description}
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                {lecture.is_free_preview && (
-                                  <Badge variant="outline" className="text-xs">
-                                    Free
-                                  </Badge>
-                                )}
-                                <BookOpen className="w-4 h-4 text-muted-foreground" />
-                              </div>
-                            </div>
-                          ))
+                          <ScanSearch className="w-4 h-4 text-amber-500" />
                         )}
-                      </div>
+                        {getStatusLabel(purchase.status)}
+                      </p>
+                      <p>
+                        {purchase.status === 'APPROVED' || purchase.status === 'COMPLETED'
+                          ? 'Your payment proof has been verified and access is unlocked.'
+                          : purchase.status === 'REJECTED'
+                            ? 'Admin rejected this request. Check the note below and submit again if needed.'
+                            : 'Admin has not reviewed this proof yet.'}
+                      </p>
+                      {purchase.admin_note && (
+                        <p className="rounded-lg border bg-background px-3 py-2 text-foreground">
+                          {purchase.admin_note}
+                        </p>
+                      )}
+                      {purchase.reviewed_by && purchase.reviewed_at && (
+                        <p>
+                          Reviewed by {purchase.reviewed_by.name} on {formatDate(purchase.reviewed_at)}
+                        </p>
+                      )}
+                    </div>
+                    {purchase.screenshot_url && (
+                      <a href={purchase.screenshot_url} target="_blank" rel="noreferrer" className="block w-40">
+                        <img src={purchase.screenshot_url} alt="Payment screenshot" className="w-40 h-28 object-cover rounded-xl border" />
+                      </a>
                     )}
-                  </CardContent>
-                )}
+                  </div>
+                </CardContent>
               </Card>
             ))}
           </div>

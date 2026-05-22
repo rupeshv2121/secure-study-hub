@@ -51,4 +51,28 @@ export interface AdminStats {
   }[];
 }
 
+export interface AdminPurchaseRequest {
+  id: string;
+  status: "PENDING" | "APPROVED" | "REJECTED" | "COMPLETED";
+  amount: number;
+  currency?: string | null;
+  screenshotUrl?: string | null;
+  adminNote?: string | null;
+  reviewedAt?: string | null;
+  reviewedBy?: {
+    id: string;
+    name: string;
+    email?: string | null;
+  } | null;
+  user?: {
+    id: string;
+    name: string;
+    email: string;
+  } | null;
+  subject?: Subject | null;
+  lecture?: Lecture | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export default {};

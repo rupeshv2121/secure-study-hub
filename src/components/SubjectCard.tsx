@@ -11,11 +11,14 @@ const SubjectCard = ({
   price,
   categoryName,
   categoryColor,
-  isPurchased,
+  purchaseState,
   lectureCount,
   onPurchase,
   onView,
 }: SubjectCardProps) => {
+  const isPurchased = purchaseState === 'approved';
+  const isPending = purchaseState === 'pending';
+
   return (
     <Card className="group h-full gradient-card border-border/50 hover:border-primary/30 transition-all duration-300 hover:shadow-medium overflow-hidden">
       <CardContent className="p-6">
@@ -66,6 +69,15 @@ const SubjectCard = ({
                 >
                   <BookOpen className="w-4 h-4" />
                   View Lectures
+                </Button>
+              ) : isPending ? (
+                <Button
+                  variant="outline"
+                  className="w-full gap-2"
+                  disabled
+                >
+                  <Lock className="w-4 h-4" />
+                  Pending Review
                 </Button>
               ) : (
                 <Button

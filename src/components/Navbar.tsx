@@ -37,10 +37,10 @@ const Navbar = () => {
 
           {/* Navigation Links */}
           <div className="flex items-center gap-6">
-            {/* {user && (
+            {user && (
               <>
                 <Link
-                  to={`/subjects?category=${id}`}
+                  to="/subjects"
                   className="text-muted-foreground hover:text-foreground transition-colors text-sm font-medium"
                 >
                   Subjects
@@ -52,7 +52,7 @@ const Navbar = () => {
                   Lectures
                 </Link>
               </>
-            )} */}
+            )}
 
             {/* Auth Section */}
             {user ? (

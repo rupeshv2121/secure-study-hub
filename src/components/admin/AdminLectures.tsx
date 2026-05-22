@@ -3,42 +3,40 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Progress } from '@/components/ui/progress';
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { convertPdfToImages, getPdfPageCount, MAX_PDF_PAGES } from '@/utils/pdfToImages';
 import {
-    closestCenter,
-    DndContext,
-    DragEndEvent,
-    KeyboardSensor,
-    PointerSensor,
-    useSensor,
-    useSensors,
+  closestCenter,
+  DndContext,
+  DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
 } from '@dnd-kit/core';
 import {
-    arrayMove,
-    SortableContext,
-    sortableKeyboardCoordinates,
-    useSortable,
-    verticalListSortingStrategy,
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { AlertTriangle, Edit, Eye, EyeOff, File, FileText, GripVertical, Plus, Trash2, Upload } from 'lucide-react';
+import { Edit, Eye, EyeOff, FileText, GripVertical, Plus, Trash2, Upload } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -171,14 +169,10 @@ const AdminLectures = () => {
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [editingLecture, setEditingLecture] = useState<Lecture | null>(null);
   const [selectedLectureId, setSelectedLectureId] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0, stage: '' });
   const [existingSlides, setExistingSlides] = useState<LectureSlide[]>([]);
-  const [slidePreviewUrls, setSlidePreviewUrls] = useState<Record<string, string>>({});
-  const [driveFileId, setDriveFileId] = useState('');
+  const [slidePreviewUrls, setSlidePreviewUrls] = useState<Record<string, { url: string; kind: 'pdf' | 'image' }>>({});
+  const [driveFileIds, setDriveFileIds] = useState('');
   const [selectedSubjectFilter, setSelectedSubjectFilter] = useState<string>('all');
-  const [pdfWarning, setPdfWarning] = useState<{ show: boolean; totalPages: number; willProcess: number } | null>(null);
-  const [pendingFiles, setPendingFiles] = useState<FileList | null>(null);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -256,12 +250,12 @@ const AdminLectures = () => {
           try {
             // Support Drive references stored as "drive:<id>"
             if (slide.storage_path?.startsWith('drive:')) {
-              const fileId = slide.storage_path.split(':', 2)[1];
+              const fileId = extractDriveFileId(slide.storage_path);
               const res = await apiFetch(`/external/drive/${encodeURIComponent(fileId)}/stream`);
               if (!res.ok) return [slide.id, ''] as const;
               const blob = await res.blob();
               const objectUrl = URL.createObjectURL(blob);
-              return [slide.id, objectUrl] as const;
+              return [slide.id, { url: objectUrl, kind: blob.type === 'application/pdf' ? 'pdf' : 'image' }] as const;
             }
 
             const res = await apiFetch(`/storage/lecture-slides/signed-url?path=${encodeURIComponent(slide.storage_path)}`);
@@ -271,7 +265,9 @@ const AdminLectures = () => {
               return [slide.id, ''] as const;
             }
 
-            return [slide.id, body.data.signedUrl as string] as const;
+            const signedUrl = body.data.signedUrl as string;
+            const isPdf = String(signedUrl).toLowerCase().includes('.pdf') || String(slide.storage_path).toLowerCase().endsWith('.pdf');
+            return [slide.id, { url: signedUrl, kind: isPdf ? 'pdf' : 'image' }] as const;
           } catch {
             return [slide.id, ''] as const;
           }
@@ -279,7 +275,7 @@ const AdminLectures = () => {
       );
 
       if (!cancelled) {
-        setSlidePreviewUrls(Object.fromEntries(entries.filter(([, url]) => url)));
+        setSlidePreviewUrls(Object.fromEntries(entries.filter(([, preview]) => preview)) as Record<string, { url: string; kind: 'pdf' | 'image' }>);
       }
     };
 
@@ -439,8 +435,6 @@ const AdminLectures = () => {
 
   const handleOpenUploadDialog = async (lectureId: string) => {
     setSelectedLectureId(lectureId);
-    setPdfWarning(null);
-    setPendingFiles(null);
     
     // Fetch existing slides
     try {
@@ -455,170 +449,78 @@ const AdminLectures = () => {
     setUploadDialogOpen(true);
   };
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || !selectedLectureId) return;
+  const extractDriveFileId = (value: string) => {
+    const input = value.trim();
+    if (!input) return '';
 
-    // Check for large PDFs
-    for (const file of Array.from(files)) {
-      if (file.type === 'application/pdf') {
-        try {
-          const info = await getPdfPageCount(file);
-          if (info.isLimited) {
-            setPdfWarning({
-              show: true,
-              totalPages: info.totalPages,
-              willProcess: info.willProcess,
-            });
-            setPendingFiles(files);
-            return;
-          }
-        } catch (error) {
-          console.error('Failed to read PDF:', error);
-        }
-      }
-    }
+    const driveMatch = input.match(/(?:drive:|\/d\/|id=)([a-zA-Z0-9_-]{10,})/);
+    if (driveMatch?.[1]) return driveMatch[1];
 
-    // No large PDFs, proceed directly
-    await processFileUpload(files);
-    e.target.value = '';
+    if (/^[a-zA-Z0-9_-]{10,}$/.test(input)) return input;
+
+    return input;
   };
 
-  const processFileUpload = async (files: FileList) => {
-    if (!selectedLectureId) return;
-
-    setUploading(true);
-    setUploadProgress({ current: 0, total: 0, stage: 'Preparing...' });
-    setPdfWarning(null);
-    
-    const fileArray = Array.from(files);
-    fileArray.sort((a, b) => a.name.localeCompare(b.name));
-
-    let slideNumber = existingSlides.length;
-    let totalSlides = 0;
-    const imagesToUpload: { blob: Blob; name: string }[] = [];
-
-    // Process files - convert PDFs to images
-    for (const file of fileArray) {
-      if (file.type === 'application/pdf') {
-        setUploadProgress({ current: 0, total: 0, stage: `Converting PDF: ${file.name}` });
-        
-        try {
-          const pages = await convertPdfToImages(file, (current, total) => {
-            setUploadProgress({ current, total, stage: `Converting page ${current}/${total}` });
-          });
-          
-          for (const page of pages) {
-            imagesToUpload.push({ 
-              blob: page.blob, 
-              name: `${file.name.replace('.pdf', '')}_page${page.pageNumber}.png` 
-            });
-          }
-          totalSlides += pages.length;
-        } catch (error) {
-          console.error('PDF conversion error:', error);
-          toast.error(`Failed to convert PDF: ${file.name}`);
-        }
-      } else {
-        imagesToUpload.push({ blob: file, name: file.name });
-        totalSlides++;
-      }
-    }
-
-    // Upload all images
-    setUploadProgress({ current: 0, total: totalSlides, stage: 'Uploading slides...' });
-    
-    for (let i = 0; i < imagesToUpload.length; i++) {
-      const { blob, name } = imagesToUpload[i];
-      slideNumber++;
-      setUploadProgress({ current: i + 1, total: totalSlides, stage: `Uploading ${i + 1}/${totalSlides}` });
-      
-      const filePath = `${selectedLectureId}/${slideNumber}.png`;
-
-      // upload to backend storage
-      try {
-        const form = new FormData();
-        // set original filename to include folder so server stores under that path
-        form.append('file', blob as any, filePath);
-        const upRes = await apiFetch(`/storage/${encodeURIComponent('lecture-slides')}/upload`, {
-          method: 'POST',
-          body: form as any,
-        } as any);
-        const upBody = await upRes.json();
-        if (!upBody?.success) {
-          toast.error(`Failed to upload ${name}`);
-          continue;
-        }
-
-        const storagePath = upBody.data?.path || filePath;
-
-        // insert slide record
-        const dbRes = await apiFetch('/lecture-slides', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ lectureId: selectedLectureId, slideNumber: slideNumber, storagePath }),
-        });
-        const dbBody = await dbRes.json();
-        if (!dbBody?.success) {
-          toast.error(`Failed to save slide record for ${name}`);
-        }
-      } catch (e) {
-        console.error(e);
-        toast.error(`Failed to upload ${name}`);
-      }
-    }
-
-    toast.success(`Uploaded ${totalSlides} slides`);
-    setUploading(false);
-    setUploadProgress({ current: 0, total: 0, stage: '' });
-    setPendingFiles(null);
-    
-    // Refresh slides list
-    try {
-      const res = await apiFetch(`/lecture-slides?lectureId=${encodeURIComponent(selectedLectureId)}`);
-      const body = await res.json();
-      const slides = (body?.data || []).map((s: any) => ({ id: s.id, slide_number: s.slideNumber ?? s.slide_number, storage_path: s.storagePath ?? s.storage_path }));
-      setExistingSlides(slides);
-    } catch (e) {
-      console.error(e);
-      setExistingSlides([]);
-    }
+  const parseDriveIds = (value: string) => {
+    return Array.from(
+      new Set(
+        value
+          .split(/[\n,\s]+/)
+          .map((item) => item.trim())
+          .map(extractDriveFileId)
+          .filter(Boolean),
+      ),
+    );
   };
 
   const handleAddDriveSlide = async () => {
-    if (!selectedLectureId || !driveFileId) return;
+    if (!selectedLectureId) return;
+
+    const ids = parseDriveIds(driveFileIds);
+    if (ids.length === 0) {
+      toast.info('Paste one or more Google Drive file IDs first.');
+      return;
+    }
+
     try {
-      const slideNumber = existingSlides.length + 1;
-      const res = await apiFetch('/lecture-slides', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lectureId: selectedLectureId, slideNumber, storagePath: `drive:${driveFileId}` }),
-      });
-      const body = await res.json();
-      if (!res.ok || !body?.success) {
-        toast.error('Failed to add Drive slide');
-        return;
+      let slideNumber = existingSlides.length;
+
+      for (const id of ids) {
+        slideNumber += 1;
+        const res = await apiFetch('/lecture-slides', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lectureId: selectedLectureId, slideNumber, storagePath: `drive:${id}` }),
+        });
+        const body = await res.json();
+        if (!res.ok || !body?.success) {
+          toast.error(`Failed to add Drive slide ${id}`);
+          return;
+        }
       }
+
       // refresh slides
       const listRes = await apiFetch(`/lecture-slides?lectureId=${encodeURIComponent(selectedLectureId)}`);
       const listBody = await listRes.json();
       const slides = (listBody?.data || []).map((s: any) => ({ id: s.id, slide_number: s.slideNumber ?? s.slide_number, storage_path: s.storagePath ?? s.storage_path }));
       setExistingSlides(slides);
-      setDriveFileId('');
-      toast.success('Drive slide added');
+      setDriveFileIds('');
+      toast.success(ids.length === 1 ? 'Drive slide added' : `Added ${ids.length} Drive slides`);
     } catch (e) {
       console.error(e);
-      toast.error('Failed to add Drive slide');
+      toast.error('Failed to add Drive slides');
     }
   };
 
   const handleDeleteSlide = async (slide: LectureSlide) => {
     try {
-      await apiFetch(`/storage/${encodeURIComponent('lecture-slides')}/remove`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paths: [slide.storage_path] }),
-      });
+      if (!slide.storage_path.startsWith('drive:')) {
+        await apiFetch(`/storage/${encodeURIComponent('lecture-slides')}/remove`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ paths: [slide.storage_path] }),
+        });
+      }
       await apiFetch(`/lecture-slides/${encodeURIComponent(slide.id)}`, { method: 'DELETE' });
       setExistingSlides((prev) => prev.filter((s) => s.id !== slide.id));
       toast.success('Slide deleted');
@@ -658,10 +560,11 @@ const AdminLectures = () => {
     }));
 
     for (const update of updates) {
-      await supabase
-        .from('lectures')
-        .update({ sort_order: update.sort_order })
-        .eq('id', update.id);
+      await apiFetch(`/lectures/${encodeURIComponent(update.id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order: update.sort_order }),
+      });
     }
 
     toast.success('Lecture order updated');
@@ -871,98 +774,27 @@ const AdminLectures = () => {
           </DialogHeader>
           
           <div className="space-y-4">
-            {/* PDF Warning */}
-            {pdfWarning?.show && (
-              <Card className="border-warning bg-warning/10">
-                <CardContent className="py-4">
-                  <div className="flex items-start gap-3">
-                    <AlertTriangle className="w-5 h-5 text-warning-foreground shrink-0 mt-0.5" />
-                    <div className="space-y-2">
-                      <p className="text-sm font-medium text-warning-foreground">
-                        Large PDF Detected ({pdfWarning.totalPages} pages)
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        Due to browser memory limits, only the first {pdfWarning.willProcess} pages will be processed. 
-                        For large chapters, we recommend uploading lecture-wise (e.g., Ch-01 Lec-01, Lec-02, etc.)
-                      </p>
-                      <div className="flex gap-2 pt-2">
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
-                          onClick={() => {
-                            setPdfWarning(null);
-                            setPendingFiles(null);
-                          }}
-                        >
-                          Cancel
-                        </Button>
-                        <Button 
-                          size="sm"
-                          onClick={() => {
-                            if (pendingFiles) {
-                              processFileUpload(pendingFiles);
-                            }
-                          }}
-                        >
-                          Continue with {pdfWarning.willProcess} pages
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
             <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
-              {uploading ? (
-                <div className="space-y-3">
-                  <File className="w-10 h-10 text-primary mx-auto animate-pulse" />
-                  <p className="text-sm font-medium text-foreground">{uploadProgress.stage}</p>
-                  {uploadProgress.total > 0 && (
-                    <>
-                      <Progress value={(uploadProgress.current / uploadProgress.total) * 100} className="h-2" />
-                      <p className="text-xs text-muted-foreground">
-                        {uploadProgress.current} of {uploadProgress.total}
-                      </p>
-                    </>
-                  )}
-                </div>
-              ) : (
-                <>
-                  <Upload className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-                  <p className="text-sm text-muted-foreground mb-1">
-                    Upload PDFs or images for your lecture slides
-                  </p>
-                  <p className="text-xs text-muted-foreground mb-3">
-                    PDFs will be converted to secure images (max {MAX_PDF_PAGES} pages per file)
-                  </p>
-                  <input
-                    type="file"
-                    accept="image/*,.pdf,application/pdf"
-                    multiple
-                    onChange={handleFileSelect}
-                    disabled={uploading}
-                    className="hidden"
-                    id="slide-upload"
-                  />
-                  <label htmlFor="slide-upload">
-                    <Button asChild disabled={uploading}>
-                      <span>Select Files</span>
-                    </Button>
-                  </label>
-                </>
-              )}
+              <>
+                <FileText className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                <p className="text-sm text-muted-foreground mb-1">
+                  Paste Google Drive file IDs for lecture slides
+                </p>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Existing slides already stored as drive:... will load from Google Drive automatically
+                </p>
+              </>
             </div>
 
             {/* Import from Google Drive */}
             <div className="mt-4 flex items-center gap-2">
-              <Input
-                placeholder="Google Drive file ID (e.g. 1a2B3cD...)"
-                value={driveFileId}
-                onChange={(e) => setDriveFileId(e.target.value)}
-                disabled={uploading}
+              <Textarea
+                placeholder="Paste Google Drive file IDs, one per line or comma-separated"
+                value={driveFileIds}
+                onChange={(e) => setDriveFileIds(e.target.value)}
+                rows={3}
               />
-              <Button onClick={handleAddDriveSlide} disabled={uploading || !driveFileId}>Add from Drive</Button>
+              <Button onClick={handleAddDriveSlide} disabled={!driveFileIds.trim()}>Import from Drive</Button>
             </div>
 
             {existingSlides.length > 0 && (
@@ -970,23 +802,31 @@ const AdminLectures = () => {
                 <Label>Existing Slides ({existingSlides.length})</Label>
                 <div className="grid grid-cols-4 gap-2 max-h-60 overflow-y-auto">
                   {existingSlides.map((slide) => {
-                    const url = slidePreviewUrls[slide.id];
+                    const preview = slidePreviewUrls[slide.id];
                     return (
                       <div
                         key={slide.id}
                         className="relative group aspect-video bg-muted rounded-lg overflow-hidden flex items-center justify-center"
                       >
-                        {url ? (
-                          <img
-                            src={url}
-                            alt={`Slide ${slide.slide_number}`}
-                            className="object-cover w-full h-full"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src = '';
-                              (e.target as HTMLImageElement).style.background = '#f3f4f6';
-                              (e.target as HTMLImageElement).style.objectFit = 'contain';
-                            }}
-                          />
+                        {preview ? (
+                          preview.kind === 'pdf' ? (
+                            <iframe
+                              title={`Slide ${slide.slide_number}`}
+                              src={preview.url}
+                              className="w-full h-full border-0"
+                            />
+                          ) : (
+                            <img
+                              src={preview.url}
+                              alt={`Slide ${slide.slide_number}`}
+                              className="object-cover w-full h-full"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = '';
+                                (e.target as HTMLImageElement).style.background = '#f3f4f6';
+                                (e.target as HTMLImageElement).style.objectFit = 'contain';
+                              }}
+                            />
+                          )
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground">
                             Loading preview
@@ -997,8 +837,8 @@ const AdminLectures = () => {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => url && window.open(url, '_blank', 'noopener,noreferrer')}
-                            disabled={!url}
+                            onClick={() => preview?.url && window.open(preview.url, '_blank', 'noopener,noreferrer')}
+                            disabled={!preview}
                           >
                             Open
                           </Button>
