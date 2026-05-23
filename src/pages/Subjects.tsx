@@ -4,12 +4,12 @@ import Navbar from '@/components/Navbar';
 import SubjectCard from '@/components/SubjectCard';
 import { Button } from '@/components/ui/button';
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -383,14 +383,14 @@ const Subjects = () => {
                   </p>
                 </div>
                 <div className="p-3 rounded-xl border bg-background flex flex-col items-center justify-center text-center gap-2">
-                  <div className="w-36 h-36 rounded-2xl border bg-muted/30 flex items-center justify-center overflow-hidden">
+                  <div className="w-40 h-40 rounded-2xl border bg-muted/30 flex items-center justify-center overflow-hidden">
                     {paymentQrImage ? (
                       <img src={paymentQrImage} alt="Payment QR code" className="w-full h-full object-cover" />
                     ) : (
                       <div className="px-4">
-                        <QrCode className="w-12 h-12 text-muted-foreground mx-auto mb-2" />
+                        <QrCode className="w-12 h-12 text-muted-foreground mx-auto " />
                         <p className="text-xs text-muted-foreground">
-                          Set VITE_PAYMENT_QR_IMAGE_URL to show your QR image.
+                          UPI id : rupesh2108@cnrb
                         </p>
                       </div>
                     )}

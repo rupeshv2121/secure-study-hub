@@ -18,18 +18,15 @@ const AdminStats = () => {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const [lecturesRes, categoriesRes] = await Promise.all([apiFetch('/lectures'), apiFetch('/categories')]);
-        const lbody = await lecturesRes.json();
-        const cbody = await categoriesRes.json();
-        const lectures = lbody?.data || [];
-        const categories = cbody?.data || [];
-        const totalViews = lectures.reduce((sum: number, l: any) => sum + (l.viewCount ?? l.view_count ?? 0), 0);
+        const res = await apiFetch('/admin/stats');
+        const body = await res.json();
+        const data = body?.data || {};
         setStats({
-          totalUsers: 0,
-          totalLectures: lectures.length,
-          totalCategories: categories.length,
-          totalViews,
-          recentViews: [],
+          totalUsers: data.totalUsers ?? 0,
+          totalLectures: data.totalLectures ?? 0,
+          totalCategories: data.totalCategories ?? 0,
+          totalViews: data.totalViews ?? 0,
+          recentViews: data.recentViews ?? [],
         });
       } catch (e) {
         console.error('Error fetching stats:', e);
