@@ -26,8 +26,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { ok, body } = await apiGetMe();
       const u = body?.user ?? body?.data?.user ?? null;
       if (ok && u) {
-        setProfile({ id: u.id, email: u.email, full_name: u.name ?? null });
-        setUser({ id: u.id, email: u.email, name: u.name, role: u.role });
+        setProfile({ id: u.id, email: u.email, full_name: u.name ?? null, phone_number: u.phoneNumber ?? u.phone_number ?? null });
+        setUser({ id: u.id, email: u.email, name: u.name, role: u.role, created_at: u.createdAt ?? u.created_at ?? null });
         setSession({ user: u, token: (body?.data?.token) || null } as any);
         setIsAdmin((u as any).role === 'ADMIN');
       }
@@ -85,8 +85,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const u = body?.data?.user || body?.user || null;
       if (token && u) {
         localStorage.setItem('auth_token', token);
-        setUser({ id: u.id, email: u.email, name: u.name, role: u.role });
-        setProfile({ id: u.id, email: u.email, full_name: u.name ?? null });
+        setUser({ id: u.id, email: u.email, name: u.name, role: u.role, created_at: u.createdAt ?? u.created_at ?? null });
+        setProfile({ id: u.id, email: u.email, full_name: u.name ?? null, phone_number: u.phoneNumber ?? u.phone_number ?? null });
         setSession({ user: u, token } as any);
         setIsAdmin((u as any).role === 'ADMIN');
       }
@@ -180,8 +180,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (token && userObj) {
           localStorage.removeItem('pending_signup');
           localStorage.setItem('auth_token', token);
-          setUser({ id: userObj.id, email: userObj.email, name: userObj.name, role: userObj.role });
-          setProfile({ id: userObj.id, email: userObj.email, full_name: userObj.name ?? null });
+          setUser({ id: userObj.id, email: userObj.email, name: userObj.name, role: userObj.role, created_at: userObj.createdAt ?? userObj.created_at ?? null });
+          setProfile({ id: userObj.id, email: userObj.email, full_name: userObj.name ?? null, phone_number: userObj.phoneNumber ?? userObj.phone_number ?? null });
           setSession({ user: userObj, token } as any);
           setIsAdmin((userObj as any).role === 'ADMIN');
         }

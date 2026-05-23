@@ -49,7 +49,7 @@ const AdminStats = () => {
   const statCards = [
     { title: 'Total Users', value: stats.totalUsers, icon: Users, color: 'text-blue-500' },
     { title: 'Total Lectures', value: stats.totalLectures, icon: FileText, color: 'text-green-500' },
-    { title: 'Categories', value: stats.totalCategories, icon: FolderOpen, color: 'text-purple-500' },
+    { title: 'Categories', value: stats.totalCategories, icon: FolderOpen, color: 'text-primary' },
     { title: 'Total Views', value: stats.totalViews, icon: Eye, color: 'text-orange-500' },
   ];
 

@@ -1,9 +1,9 @@
 export interface CategoryCardProps {
   id: string;
   name: string;
-  description: string | null;
-  icon: string | null;
-  color: string | null;
+  description?: string | null;
+  icon?: string | null;
+  color?: string | null;
   subject_count?: number;
 }
 

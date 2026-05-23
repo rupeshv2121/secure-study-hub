@@ -4,12 +4,12 @@ import Navbar from '@/components/Navbar';
 import SubjectCard from '@/components/SubjectCard';
 import { Button } from '@/components/ui/button';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -150,6 +150,29 @@ const Subjects = () => {
 
       // merge computed prices into subjects
       setSubjects((prev) => prev.map((s) => ({ ...s, price: priceMap.get(s.id) ?? 0 })));
+
+      // If a purchaseSubject query param is present, auto-open the purchase dialog for that subject
+      const purchaseSubjectId = searchParams.get('purchaseSubject');
+      if (purchaseSubjectId) {
+        const target = (subs || []).find((ss: any) => ss.id === purchaseSubjectId || ss.id === decodeURIComponent(purchaseSubjectId));
+        if (target) {
+          const subjectObj = {
+            ...target,
+            name: target.name ?? target.title ?? '',
+            category_id: target.categoryId ?? target.category_id ?? target.category?.id ?? target.categories?.id,
+            categories: target.category ?? target.categories,
+          };
+          setSelectedSubject(subjectObj);
+          setPaymentScreenshot(null);
+          setPaymentNote('');
+          setPurchaseDialogOpen(true);
+
+          // remove the query param so it doesn't reopen repeatedly
+          const newParams = new URLSearchParams(searchParams);
+          newParams.delete('purchaseSubject');
+          setSearchParams(newParams);
+        }
+      }
     } catch (e) {
       console.error('Failed to load subjects data', e);
     } finally {

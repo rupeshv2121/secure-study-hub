@@ -3,6 +3,7 @@ export type User = {
   email?: string | null;
   name?: string | null;
   role?: string | null;
+  created_at?: string | null;
   user_metadata?: {
     phone_number?: string | null;
     [key: string]: unknown;
@@ -14,6 +15,7 @@ export interface Profile {
   id: string;
   email: string;
   full_name: string | null;
+  phone_number?: string | null;
 }
 
 export interface AuthContextType {
