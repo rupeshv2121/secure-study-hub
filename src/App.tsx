@@ -1,7 +1,7 @@
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AuthProvider } from "@/contexts/AuthContext";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BookOpen, Loader2, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -9,13 +9,12 @@ import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
 import Admin from "./pages/Admin";
 import Auth from "./pages/Auth";
 import Index from "./pages/Index";
+import Lectures from "./pages/Lectures";
 import MyPurchases from "./pages/MyPurchases";
 import NotFound from "./pages/NotFound";
 import Profile from "./pages/Profile";
-import Lectures from "./pages/Lectures";
 import Subjects from "./pages/Subjects";
 import Viewer from "./pages/Viewer";
-import { useAuth } from "@/contexts/AuthContext";
 
 const queryClient = new QueryClient();
 
@@ -64,7 +63,7 @@ const SiteLoader = ({ label, subtitle }: { label: string; subtitle: string }) =>
 
         <div className="mt-8 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.28em] text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin text-primary" />
-          Preparing your experience
+          Getting things ready for you
         </div>
 
         <div className="mt-7 flex w-full max-w-xs items-center gap-2">
@@ -117,8 +116,8 @@ const AppShell = () => {
     }
 
     return {
-      label: 'Switching pages',
-      subtitle: 'Transitioning smoothly to the next section of the platform.',
+      label: 'Preparing your study session',
+      subtitle: 'Loading content and settings for a smooth, focused learning experience.',
     };
   }, [authLoading, bootElapsed]);
 

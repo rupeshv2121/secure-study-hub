@@ -103,7 +103,7 @@ const Lectures = () => {
     <div className="min-h-screen gradient-hero">
       <Navbar />
 
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-8 max-w-[78rem]">
         <div className="mb-8 animate-fade-in">
           <div className="flex items-center gap-4 mb-4">
             {subjectFilter !== 'all' && (

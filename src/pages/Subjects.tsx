@@ -21,9 +21,9 @@ import { AlertCircle, CheckCircle, IndianRupee, Loader2, QrCode, Search, Upload 
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
-
-  const paymentQrImage = import.meta.env.VITE_PAYMENT_QR_IMAGE_URL as string | undefined;
-  const paymentUpiId = import.meta.env.VITE_PAYMENT_UPI_ID as string | undefined;
+import paymentQrImage from '../../public/paymentQrImage.jpeg';
+ 
+const paymentUpiId = import.meta.env.VITE_PAYMENT_UPI_ID as string | undefined;
 
 
 const Subjects = () => {
@@ -275,7 +275,7 @@ const Subjects = () => {
     <div className="min-h-screen gradient-hero">
       <Navbar />
 
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-8 max-w-[78rem]">
         <div className="mb-8 animate-fade-in">
           <div className="flex items-center gap-4 mb-4">
             {selectedCategoryId && categoryFilter !== 'all' && (

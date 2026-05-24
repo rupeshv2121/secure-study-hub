@@ -109,12 +109,12 @@ const Index = () => {
             }}
           />
 
-          <section className="container relative mx-auto px-4 py-16 md:py-24">
+          <section className="container relative mx-auto px-4 py-16 md:py-24 max-w-[78rem]">
             <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_.95fr]">
               <div className="mx-auto max-w-3xl lg:mx-0">
                 <div className="inline-flex items-center gap-2 rounded-full border border-primary/15 bg-background/85 px-4 py-2 text-sm font-medium text-foreground shadow-soft backdrop-blur-xl">
                   <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-                  Curated study materials with secure access
+                  Learn with focus — secure, curated resources for steady progress
                 </div>
 
                 <h1 className="mt-6 text-5xl font-semibold leading-[1.02] tracking-tight text-foreground md:text-6xl xl:text-7xl">
@@ -122,7 +122,7 @@ const Index = () => {
                 </h1>
 
                 <p className="mt-6 max-w-2xl text-lg leading-8 text-muted-foreground md:text-xl">
-                  Access lecture notes, slides, practice sets, and other learning resources through a clean, organized, and secure platform.
+                  Turn knowledge into skill: concise notes, guided examples, and practice problems to help you build confidence every day.
                 </p>
 
                 <div className="mt-8 flex flex-col gap-4 sm:flex-row">
@@ -635,7 +635,7 @@ const Index = () => {
         </main>
       ) : (
         // Dashboard for authenticated users
-        <main className="container mx-auto px-4 py-8">
+        <main className="container mx-auto px-4 py-8 max-w-[78rem]">
           <div className="mb-8 animate-fade-in">
             <h1 className="text-3xl font-bold text-foreground mb-2">
               Welcome back{user.email ? `, ${user.email.split('@')[0]}` : ''}!

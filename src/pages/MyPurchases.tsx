@@ -183,7 +183,7 @@ const MyPurchases = () => {
     <div className="min-h-screen gradient-hero">
       <Navbar />
 
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-8 max-w-[78rem]">
         <div className="mb-8 animate-fade-in">
           <BackButton to="/" label="Back to Home" className="mb-4" />
           <h1 className="text-3xl font-bold text-foreground mb-2">My Purchases</h1>

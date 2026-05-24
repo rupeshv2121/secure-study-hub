@@ -114,7 +114,7 @@ const Viewer = () => {
     return (
       <div className="min-h-screen gradient-hero">
         <Navbar />
-        <main className="container mx-auto px-4 py-16">
+        <main className="container mx-auto px-4 py-16 max-w-lg">
           <div className="mx-auto max-w-lg rounded-2xl border bg-background/80 p-8 text-center shadow-soft">
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-amber-500/10 text-amber-500">
               <Lock className="h-6 w-6" />
