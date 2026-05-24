@@ -22,6 +22,7 @@ export interface Lecture {
   id: string;
   title: string;
   description?: string | null;
+  price?: number;
   category_id?: string;
   subject_id?: string | null;
   is_published?: boolean;

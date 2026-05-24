@@ -105,6 +105,7 @@ const Subjects = () => {
           name: s.name ?? s.title ?? '',
           category_id: s.categoryId ?? s.category_id ?? s.category?.id ?? s.categories?.id,
           categories: s.category ?? s.categories,
+          price: typeof s.price === 'number' ? s.price : parseFloat(s.price || '') || 0,
         })),
       );
 
@@ -135,21 +136,16 @@ const Subjects = () => {
       const lecturesBody = await lecturesRes.json();
       const lectures = lecturesBody?.data || [];
       const counts = new Map<string, number>();
-      const priceMap = new Map<string, number>();
       lectures.forEach((l: any) => {
         const sid = l.subject_id || l.subjectId || l.subjects?.id;
         if (sid) {
           counts.set(sid, (counts.get(sid) || 0) + 1);
-          const p = typeof l.price === 'number' ? l.price : parseFloat(l.price || 0) || 0;
-          const existing = priceMap.get(sid) || 0;
-          // show the maximum lecture price as subject price
-          if (p > existing) priceMap.set(sid, p);
         }
       });
       setLectureCounts(counts);
 
-      // merge computed prices into subjects
-      setSubjects((prev) => prev.map((s) => ({ ...s, price: priceMap.get(s.id) ?? 0 })));
+      // subject cards use the persisted subject price
+      setSubjects((prev) => prev.map((s) => ({ ...s, price: s.price ?? 0 })));
 
       // If a purchaseSubject query param is present, auto-open the purchase dialog for that subject
       const purchaseSubjectId = searchParams.get('purchaseSubject');
@@ -161,6 +157,7 @@ const Subjects = () => {
             name: target.name ?? target.title ?? '',
             category_id: target.categoryId ?? target.category_id ?? target.category?.id ?? target.categories?.id,
             categories: target.category ?? target.categories,
+            price: typeof target.price === 'number' ? target.price : parseFloat(target.price || '') || 0,
           };
           setSelectedSubject(subjectObj);
           setPaymentScreenshot(null);

@@ -237,7 +237,7 @@ const MyPurchases = () => {
                             <Calendar className="w-3 h-3" />
                             Purchased: {formatDate(purchase.purchased_at)}
                           </span>
-                          <span>₹{purchase.amount_paid}</span>
+                          <span>₹{Number.isFinite(purchase.amount_paid) ? purchase.amount_paid.toLocaleString('en-IN') : 0}</span>
                         </div>
                       </div>
 

@@ -211,6 +211,7 @@ const AdminLectures = () => {
         id: l.id,
         title: l.title,
         description: l.description,
+        price: typeof l.price === 'number' ? l.price : parseFloat(l.price || '') || 0,
         category_id: l.categoryId ?? l.category_id,
         subject_id: l.subjectId ?? l.subject_id ?? null,
         is_published: l.published ?? l.is_published ?? false,
@@ -679,6 +680,8 @@ const AdminLectures = () => {
             </div>
 
             <div className="space-y-2">
+
+            
               <Label htmlFor="subject">Subject (required for paid access)</Label>
               <Select
                 value={formData.subject_id || "none"}

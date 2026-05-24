@@ -42,31 +42,17 @@ const AdminSubjects = () => {
 
   const fetchData = async () => {
     try {
-      const [subjectsRes, categoriesRes, lecturesRes] = await Promise.all([
+      const [subjectsRes, categoriesRes] = await Promise.all([
         apiFetch('/subjects'),
         apiFetch('/categories'),
-        apiFetch('/lectures'),
       ]);
 
       const sbody = await subjectsRes.json();
       const cbody = await categoriesRes.json();
-      const lbody = await lecturesRes.json();
 
       const subs = sbody?.data || [];
       const cats = cbody?.data || [];
-      const lectures = lbody?.data || [];
-
-      // compute price per subject from lectures (use max lecture price)
-      const priceMap = new Map<string, number>();
-      lectures.forEach((l: any) => {
-        const sid = l.subjectId ?? l.subject_id ?? l.subjects?.id;
-        if (!sid) return;
-        const p = typeof l.price === 'number' ? l.price : parseFloat(l.price || 0) || 0;
-        const existing = priceMap.get(sid) || 0;
-        if (p > existing) priceMap.set(sid, p);
-      });
-
-      // normalize subject.title -> name and attach computed price
+      // normalize subject.title -> name and keep the persisted subject-wise price
       setSubjects(
         subs.map((s: any) => ({
           ...s,
@@ -74,7 +60,7 @@ const AdminSubjects = () => {
           category_id: s.categoryId ?? s.category_id ?? s.category?.id ?? s.categories?.id,
           categories: s.category ?? s.categories,
           is_active: s.isActive ?? s.is_active ?? true,
-          price: priceMap.get(s.id) ?? 0,
+          price: typeof s.price === 'number' ? s.price : parseFloat(s.price || '') || 0,
         })),
       );
       setCategories(cats || []);
@@ -132,6 +118,7 @@ const AdminSubjects = () => {
           body: JSON.stringify({
             title: formData.name,
             description: formData.description || undefined,
+            price: formData.price,
             categoryId: formData.category_id,
             isActive: formData.is_active,
           }),
@@ -156,6 +143,7 @@ const AdminSubjects = () => {
           body: JSON.stringify({
             title: formData.name,
             description: formData.description || undefined,
+            price: formData.price,
             categoryId: formData.category_id,
             isActive: formData.is_active,
           }),
