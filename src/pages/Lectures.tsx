@@ -159,27 +159,6 @@ const Lectures = () => {
               ))}
             </SelectContent>
           </Select>
-
-          <Select
-            value={subjectFilter}
-            onValueChange={(val) => {
-              const newParams = new URLSearchParams(searchParams);
-              newParams.set('subject', val);
-              setSearchParams(newParams);
-            }}
-          >
-            <SelectTrigger className="w-full sm:w-48">
-              <SelectValue placeholder="All Subjects" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Subjects</SelectItem>
-              {subjects.map((sub) => (
-                <SelectItem key={sub.id} value={sub.id}>
-                  {sub.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
         </div>
 
         {/* Lectures Grid */}

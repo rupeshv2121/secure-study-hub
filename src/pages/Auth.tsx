@@ -1,4 +1,3 @@
-import apiFetch from '@/api/client';
 import BackButton from '@/components/BackButton';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,7 +6,8 @@ import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { ArrowRight, BookOpen, KeyRound, Loader2, Lock, Mail, Phone, User } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { z } from 'zod';
 
@@ -25,17 +25,12 @@ const signUpSchema = z.object({
   phoneNumber: z.string().optional(),
 });
 
-const otpSchema = z.object({
-  otp: z.string().min(6, { message: 'OTP must be at least 6 digits' }).max(8, { message: 'OTP is too long' }),
-});
-
 const forgotPasswordSchema = z.object({
   email: emailSchema,
 });
 
 const resetPasswordSchema = z
   .object({
-    otp: z.string().min(6, { message: 'OTP must be at least 6 digits' }),
     newPassword: z.string().min(6, { message: 'Password must be at least 6 characters' }),
     confirmPassword: z.string().min(6, { message: 'Confirm password is required' }),
   })
@@ -50,8 +45,6 @@ const Auth = () => {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [otp, setOtp] = useState('');
-  const [showOtpVerification, setShowOtpVerification] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [showResetPasswordForm, setShowResetPasswordForm] = useState(false);
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
@@ -60,7 +53,8 @@ const Auth = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const { signUp, signIn, user, sendOtp, verifyOtp, resetPassword, updatePasswordWithOtp } = useAuth();
+  const { signUp, signIn, user, resetPassword, updatePasswordWithOtp } = useAuth();
+  const location = useLocation();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -69,25 +63,33 @@ const Auth = () => {
     }
   }, [user, navigate]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const mode = params.get('mode');
+    if (mode === 'reset') {
+      // Parse the Supabase recovery session from the URL so `updateUser` works
+      (async () => {
+        try {
+          // This reads the access token from the URL and stores the session in the client
+          // so that `supabase.auth.getSession()` will return a valid session.
+          // Some versions of the client don't expose the helper on the typed
+          // interface — call it via an untyped helper signature if available.
+          const authHelper = supabase.auth as unknown as { getSessionFromUrl?: () => Promise<unknown> };
+          if (authHelper.getSessionFromUrl) await authHelper.getSessionFromUrl();
+        } catch (err) {
+          // ignore — we'll show a helpful error when attempting to update
+          // the password if the session isn't present
+        } finally {
+          setShowForgotPassword(false);
+          setShowResetPasswordForm(true);
+        }
+      })();
+    }
+  }, [location.search]);
+
   const validateForm = () => {
     if (showResetPasswordForm) {
-      const result = resetPasswordSchema.safeParse({ otp, newPassword, confirmPassword });
-      if (!result.success) {
-        const fieldErrors: Record<string, string> = {};
-        result.error.errors.forEach((err) => {
-          if (err.path[0]) {
-            fieldErrors[err.path[0] as string] = err.message;
-          }
-        });
-        setErrors(fieldErrors);
-        return false;
-      }
-      setErrors({});
-      return true;
-    }
-
-    if (showOtpVerification) {
-      const result = otpSchema.safeParse({ otp });
+      const result = resetPasswordSchema.safeParse({ newPassword, confirmPassword });
       if (!result.success) {
         const fieldErrors: Record<string, string> = {};
         result.error.errors.forEach((err) => {
@@ -146,44 +148,16 @@ const Auth = () => {
 
     try {
       if (showResetPasswordForm) {
-        const { error } = await updatePasswordWithOtp(forgotPasswordEmail, otp, newPassword);
+        const { error } = await updatePasswordWithOtp(newPassword);
         if (error) {
           toast.error(error.message || 'Failed to reset password. Please try again.');
         } else {
           toast.success('Password reset successful! Please sign in with your new password.');
           setNewPassword('');
           setConfirmPassword('');
-          setOtp('');
           setShowForgotPassword(false);
           setShowResetPasswordForm(false);
           setIsSignUp(false);
-        }
-      } else if (showOtpVerification) {
-        if (!password) {
-          toast.error('Signup session expired. Please sign up again to get a new OTP.');
-          setShowOtpVerification(false);
-          setIsSignUp(true);
-          return;
-        }
-
-        const { error: verifyError } = await verifyOtp(email, otp, 'signup', password);
-        if (verifyError) {
-          toast.error(verifyError.message || 'Invalid OTP. Please try again.');
-        } else {
-          toast.success('Email verified! Your account is now active.');
-          // Sync user to backend DB
-          try {
-            await apiFetch('/auth/sync', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ email, name: fullName }),
-            });
-          } catch (e) {
-            console.warn('Failed to sync user to backend:', e);
-          }
-
-          setPassword('');
-          navigate('/');
         }
       } else if (showForgotPassword) {
         const { error } = await resetPassword(forgotPasswordEmail);
@@ -191,13 +165,11 @@ const Auth = () => {
           if (error.message.includes('User not found') || error.message.includes('no user')) {
             toast.error('No account found with this email address.');
           } else {
-            toast.error(error.message || 'Failed to send reset OTP. Please try again.');
+            toast.error(error.message || 'Failed to send reset link. Please try again.');
           }
         } else {
-          toast.success('Verification code sent to your email! Enter the OTP to continue.');
+          toast.success('Reset link sent to your email. Open it to continue.');
           setShowForgotPassword(false);
-          setShowResetPasswordForm(true);
-          setOtp('');
         }
       } else if (isSignUp) {
         const { error: signUpError } = await signUp(email, password, fullName, phoneNumber);
@@ -208,8 +180,12 @@ const Auth = () => {
             toast.error(signUpError.message);
           }
         } else {
-          toast.success('Account created! Enter the OTP sent to your email to activate your account.');
-          setShowOtpVerification(true);
+          toast.success('Account created successfully!');
+          setEmail('');
+          setPassword('');
+          setFullName('');
+          setPhoneNumber('');
+          navigate('/');
         }
       } else {
         const { error } = await signIn(email, password);
@@ -217,7 +193,7 @@ const Auth = () => {
           if (error.message.includes('Invalid login credentials')) {
             toast.error('Invalid email or password. Please try again.');
           } else if (error.message.includes('Email not confirmed')) {
-            toast.error('Please verify your email using the OTP sent to your inbox before signing in.');
+            toast.error('Please check your email and complete the sign-in flow.');
           } else {
             toast.error(error.message);
           }
@@ -233,16 +209,18 @@ const Auth = () => {
     }
   };
 
-  const handleResendOtp = async () => {
+  const handleResendResetLink = async () => {
+    if (!showForgotPassword) {
+      return;
+    }
+
     setIsLoading(true);
     try {
-      const { error } = showResetPasswordForm 
-        ? await resetPassword(forgotPasswordEmail)
-        : await sendOtp(email, 'signup');
+      const { error } = await resetPassword(forgotPasswordEmail);
       if (error) {
         toast.error(error.message || 'Failed to resend the email.');
       } else {
-        toast.success(showResetPasswordForm ? 'Verification code resent successfully!' : 'Verification code resent successfully!');
+        toast.success('Reset link resent successfully!');
       }
     } catch (error) {
       toast.error('Failed to resend the email. Please try again.');
@@ -273,20 +251,16 @@ const Auth = () => {
                 ? 'Reset your password'
                 : showForgotPassword 
                   ? 'Forgot password?'
-                  : showOtpVerification
-                    ? 'Verify your email'
-                    : isSignUp 
+                  : isSignUp 
                       ? 'Create your account' 
                       : 'Welcome back'}
             </CardTitle>
             <CardDescription>
               {showResetPasswordForm
-                ? 'Enter the OTP and your new password'
+                ? 'Create a new password after opening the reset link'
                 : showForgotPassword
-                  ? 'Enter your email to receive a reset code'
-                  : showOtpVerification
-                    ? 'Check your inbox for the verification code'
-                    : isSignUp
+                  ? 'Enter your email to receive a reset link'
+                  : isSignUp
                       ? 'Start learning with secure lecture notes'
                       : 'Sign in to access your lectures'}
             </CardDescription>
@@ -295,32 +269,6 @@ const Auth = () => {
           <CardContent>
             {showResetPasswordForm ? (
               <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="text-center mb-4">
-                  <KeyRound className="w-12 h-12 text-primary mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground">
-                    Enter the OTP code sent to <strong>{forgotPasswordEmail}</strong>
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="resetOtp">OTP Code</Label>
-                  <div className="relative">
-                    <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      id="resetOtp"
-                      type="text"
-                      placeholder="Enter OTP"
-                      value={otp}
-                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 8))}
-                      className="pl-10 text-center text-2xl tracking-widest font-mono"
-                      maxLength={8}
-                    />
-                  </div>
-                  {errors.otp && (
-                    <p className="text-sm text-destructive">{errors.otp}</p>
-                  )}
-                </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="newPassword">New Password</Label>
                   <div className="relative">
@@ -381,10 +329,10 @@ const Auth = () => {
                   type="button"
                   variant="ghost"
                   className="w-full text-sm"
-                  onClick={handleResendOtp}
+                  onClick={handleResendResetLink}
                   disabled={isLoading}
                 >
-                  Didn't receive code? Resend OTP
+                  Didn't receive link? Resend reset link
                 </Button>
 
                 <Button
@@ -393,7 +341,6 @@ const Auth = () => {
                   className="w-full"
                   onClick={() => {
                     setShowResetPasswordForm(false);
-                    setOtp('');
                     setNewPassword('');
                     setConfirmPassword('');
                     setErrors({});
@@ -432,11 +379,11 @@ const Auth = () => {
                   {isLoading ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Sending code...
+                      Sending link...
                     </>
                   ) : (
                     <>
-                      Send reset code
+                      Send reset link
                       <ArrowRight className="w-4 h-4" />
                     </>
                   )}
@@ -455,90 +402,6 @@ const Auth = () => {
                   Back to Sign In
                 </Button>
               </form>
-            ) : showOtpVerification ? (
-              <div className="space-y-4">
-                <div className="text-center mb-4">
-                  <KeyRound className="w-12 h-12 text-primary mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground">
-                    We sent a verification code to <strong>{email}</strong>. Enter the OTP below to activate your account.
-                  </p>
-                </div>
-
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="otp">OTP Code</Label>
-                    <div className="relative">
-                      <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input
-                        id="otp"
-                        type="text"
-                        placeholder="Enter OTP"
-                        value={otp}
-                        onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 8))}
-                        className="pl-10 text-center text-2xl tracking-widest font-mono"
-                        maxLength={8}
-                      />
-                    </div>
-                    {errors.otp && (
-                      <p className="text-sm text-destructive">{errors.otp}</p>
-                    )}
-                  </div>
-
-                  <Button
-                    type="submit"
-                    variant="hero"
-                    size="lg"
-                    className="w-full"
-                    disabled={isLoading || otp.length < 6}
-                  >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Verifying...
-                      </>
-                    ) : (
-                      <>
-                        Verify OTP
-                        <ArrowRight className="w-4 h-4" />
-                      </>
-                    )}
-                  </Button>
-
-                <Button
-                  type="button"
-                  variant="hero"
-                  size="lg"
-                  className="w-full"
-                  onClick={handleResendOtp}
-                  disabled={isLoading}
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Resending code...
-                    </>
-                  ) : (
-                    <>
-                      Resend verification code
-                      <ArrowRight className="w-4 h-4" />
-                    </>
-                  )}
-                </Button>
-
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="w-full"
-                  onClick={() => {
-                    setShowOtpVerification(false);
-                    setOtp('');
-                    setErrors({});
-                  }}
-                >
-                  Back
-                </Button>
-                </form>
-              </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
                 {isSignUp && (

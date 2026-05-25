@@ -638,7 +638,7 @@ const Index = () => {
         <main className="container mx-auto px-4 py-8 max-w-[78rem]">
           <div className="mb-8 animate-fade-in">
             <h1 className="text-3xl font-bold text-foreground mb-2">
-              Welcome back{user.email ? `, ${user.email.split('@')[0]}` : ''}!
+              Welcome back{user.name ? `, ${user.name}` : ''}
             </h1>
             <p className="text-muted-foreground">Browse categories below</p>
           </div>

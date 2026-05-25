@@ -39,15 +39,11 @@ export interface AuthContextType {
   verifyOtp: (
     email: string,
     token: string,
-    type?: "signup" | "reset",
+    type?: "reset",
     newPassword?: string,
   ) => Promise<{ error: Error | null }>;
   resetPassword: (email: string) => Promise<{ error: Error | null }>;
-  updatePasswordWithOtp: (
-    email: string,
-    token: string,
-    newPassword: string,
-  ) => Promise<{ error: Error | null }>;
+  updatePasswordWithOtp: (newPassword: string) => Promise<{ error: Error | null }>;
 }
 
 export default {};
