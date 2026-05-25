@@ -43,7 +43,9 @@ export interface AuthContextType {
     newPassword?: string,
   ) => Promise<{ error: Error | null }>;
   resetPassword: (email: string) => Promise<{ error: Error | null }>;
-  updatePasswordWithOtp: (newPassword: string) => Promise<{ error: Error | null }>;
+  updatePasswordWithOtp: (
+    newPassword: string,
+  ) => Promise<{ error: Error | null }>;
 }
 
 export default {};

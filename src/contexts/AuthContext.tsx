@@ -1,5 +1,4 @@
 import { getMe as apiGetMe, login as apiLogin, register as apiRegister } from '@/api/auth';
-import apiFetch from '@/api/client';
 import { supabase } from '@/integrations/supabase/client';
 import type { AuthContextType, Profile, Session, User } from '@/interfaces/auth';
 import React, { createContext, useContext, useEffect, useState } from 'react';
