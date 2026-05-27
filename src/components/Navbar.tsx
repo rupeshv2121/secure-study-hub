@@ -43,7 +43,7 @@ const Navbar = () => {
           </div>
           <div className="hidden sm:block">
             <div className="flex items-center gap-2">
-              <span className="font-semibold text-foreground">LectureVault</span>
+              <span className="font-semibold text-foreground">Out from Cumfurt</span>
             </div>
             <div className="text-xs text-muted-foreground">Modern Notes delivery</div>
           </div>

@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
-import { BadgeCheck, CalendarDays, Loader2, Lock, Mail, Phone, Save, User } from 'lucide-react';
+import { Loader2, Lock, Mail, Phone, Save, User } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -120,40 +120,36 @@ const Profile = () => {
     <div className="min-h-screen gradient-hero">
       <Navbar />
       <main className="container mx-auto max-w-[78rem] px-4 py-8 md:py-10">
-        <div className="mb-6">
-          <BackButton className="mb-6" />
+        <div className="mb-6 flex items-center justify-between">
           <div className="flex flex-col gap-3">
-            <p className="text-sm font-medium uppercase tracking-[0.24em] text-primary">Profile</p>
             <h1 className="text-3xl font-semibold tracking-tight text-foreground md:text-4xl">Account settings</h1>
-            <p className="max-w-2xl text-sm leading-6 text-muted-foreground md:text-base">
-              Keep your name, contact info, and password up to date in one clean place.
-            </p>
           </div>
+          <BackButton className="mb-6" />
         </div>
 
-        <div className="mb-6 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-2xl border border-border/60 bg-background/85 p-4 shadow-soft">
+        {/* <div className="mb-6 grid gap-3 sm:grid-cols-3"> */}
+          {/* <div className="rounded-2xl border border-border/60 bg-background/85 p-4 shadow-soft">
             <div className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Status</div>
             <div className="mt-2 flex items-center gap-2 text-sm font-medium text-foreground">
               <User className="h-4 w-4 text-primary" />
               Active account
             </div>
-          </div>
-          <div className="rounded-2xl border border-border/60 bg-background/85 p-4 shadow-soft">
+          </div> */}
+          {/* <div className="rounded-2xl border border-border/60 bg-background/85 p-4 shadow-soft">
             <div className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Verified</div>
             <div className="mt-2 flex items-center gap-2 text-sm font-medium text-foreground">
               <BadgeCheck className="h-4 w-4 text-primary" />
               {user.email_confirmed_at ? 'Email verified' : 'Email pending'}
             </div>
-          </div>
-          <div className="rounded-2xl border border-border/60 bg-background/85 p-4 shadow-soft">
+          </div> */}
+          {/* <div className="rounded-2xl border border-border/60 bg-background/85 p-4 shadow-soft">
             <div className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Member since</div>
             <div className="mt-2 flex items-center gap-2 text-sm font-medium text-foreground">
               <CalendarDays className="h-4 w-4 text-primary" />
               {memberSince}
             </div>
-          </div>
-        </div>
+          </div> */}
+        {/* </div> */}
 
         <div className="grid gap-6 lg:grid-cols-[1fr_0.95fr]">
           <Card className="border-border/60 bg-background/85 shadow-soft">

@@ -44,7 +44,60 @@ const AdminPurchases = () => {
     try {
       const res = await apiFetch('/purchases');
       const body = await res.json();
-      setRequests(body?.data || []);
+      const requestsData = body?.data || [];
+      // Try to enrich requests with subject data when the API doesn't include it.
+      try {
+        const subsRes = await apiFetch('/subjects');
+        const subsBody = await subsRes.json();
+        const subs = subsBody?.data || [];
+        const subjectMap = new Map<string, any>();
+        subs.forEach((s: any) => {
+          if (s) {
+            if (s.id != null) subjectMap.set(String(s.id), s);
+            if ((s as any)._id != null) subjectMap.set(String((s as any)._id), s);
+          }
+        });
+
+        // helper to extract any likely subject id variant from a request
+        const extractSubjectId = (r: any) => {
+          const candidates = [
+            r.subjectId,
+            r.subject_id,
+            r.subject?.id,
+            r.subject?._id,
+            r.lecture?.subjectId,
+            r.lecture?.subject_id,
+            r.lecture?.subject?.id,
+            r.lecture?.subject?._id,
+            r.lecture?.subjects?.id,
+            r.lecture?.subjects?._id,
+          ];
+          for (const c of candidates) {
+            if (c != null) return String(c);
+          }
+          return null;
+        };
+
+        const enriched = requestsData.map((r: any) => {
+          if (!r.subject) {
+            const subId = extractSubjectId(r);
+            if (subId && subjectMap.has(subId)) {
+              return { ...r, subject: subjectMap.get(subId) };
+            }
+            // Log unresolved mapping to help debugging in the browser console
+            console.debug('AdminPurchases: could not resolve subject for request', { request: r, extractedSubjectId: subId });
+          }
+          return r;
+        });
+
+        console.debug('AdminPurchases: purchases fetched', { requestsData });
+        console.debug('AdminPurchases: subjects fetched', { subsCount: subs.length });
+        setRequests(enriched);
+      } catch (e) {
+        // If subjects fetch fails, fall back to raw requests
+        console.error('Failed to enrich requests with subjects', e);
+        setRequests(requestsData);
+      }
       setExpandedId((current) => current && body?.data?.some((item: AdminPurchaseRequest) => item.id === current) ? current : null);
     } catch (error) {
       console.error('Failed to load purchase requests', error);
@@ -152,10 +205,10 @@ const AdminPurchases = () => {
             {expandedId === request.id && (
               <CardContent className="grid gap-4 lg:grid-cols-[280px_1fr]">
                 <div className="space-y-3">
-                  <div className="rounded-xl border bg-muted/30 p-4">
+                  <div className="rounded-xl border bg-muted/30 p-4 mb-2">
                     <p className="text-xs uppercase tracking-wide text-muted-foreground">Subject</p>
                     <p className="mt-1 text-base font-semibold text-foreground">
-                      {request.subject?.name || request.lecture?.title || 'Unknown subject'}
+                      {request.subject?.name || request.subject?.title || request.subject || request.lecture?.title || 'Unknown subject'}
                     </p>
                   </div>
                   {request.screenshotUrl ? (
@@ -167,12 +220,6 @@ const AdminPurchases = () => {
                       No screenshot available
                     </div>
                   )}
-                  <Textarea
-                    placeholder="Admin note"
-                    value={notes[request.id] ?? request.adminNote ?? ''}
-                    onChange={(e) => setNotes((prev) => ({ ...prev, [request.id]: e.target.value }))}
-                    rows={4}
-                  />
                 </div>
 
                 <div className="space-y-4">
@@ -190,6 +237,12 @@ const AdminPurchases = () => {
                   </div>
 
                   <div className="flex flex-wrap gap-3">
+                     <Textarea
+                    placeholder="Admin note"
+                    value={notes[request.id] ?? request.adminNote ?? ''}
+                    onChange={(e) => setNotes((prev) => ({ ...prev, [request.id]: e.target.value }))}
+                    rows={4}
+                  />
                     <Button
                       onClick={() => reviewRequest(request.id, 'APPROVED')}
                       disabled={busyId === request.id || request.status === 'APPROVED'}
@@ -207,6 +260,8 @@ const AdminPurchases = () => {
                       {busyId === request.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <CircleSlash className="w-4 h-4" />}
                       Reject
                     </Button>
+
+                   
                   </div>
 
                   {request.reviewedAt && (

@@ -108,7 +108,7 @@ const MyPurchases = () => {
 
       subjects.forEach((subject) => {
         if (subject.id) {
-          subjectMap.set(subject.id, subject);
+          subjectMap.set(String(subject.id), subject);
         }
       });
 
@@ -117,7 +117,8 @@ const MyPurchases = () => {
           if (!purchase?.id) return null;
           if (currentUserId && purchase.userId && purchase.userId !== currentUserId) return null;
 
-          const subjectId = purchase.subjectId || purchase.subject?.id || purchase.lecture?.subjectId;
+          const rawSubjectId = purchase.subjectId || purchase.subject?.id || purchase.lecture?.subjectId;
+          const subjectId = rawSubjectId != null ? String(rawSubjectId) : null;
           const subject = subjectId
             ? subjectMap.get(subjectId) || purchase.subject || purchase.lecture?.subject || null
             : purchase.subject || purchase.lecture?.subject || null;

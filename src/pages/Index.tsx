@@ -1,5 +1,6 @@
 import apiFetch from '@/api/client';
 import CategoryCard from '@/components/CategoryCard';
+import LottieHero from '@/components/LottieHero';
 import Navbar from '@/components/Navbar';
 import {
   Accordion,
@@ -109,147 +110,42 @@ const Index = () => {
             }}
           />
 
-          <section className="container relative mx-auto px-4 py-16 md:py-24 max-w-[78rem]">
+          <section className="container relative mx-auto px-4 py-16 md:py-8 max-w-[78rem]">
             <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_.95fr]">
-              <div className="mx-auto max-w-3xl lg:mx-0">
-                <div className="inline-flex items-center gap-2 rounded-full border border-primary/15 bg-background/85 px-4 py-2 text-sm font-medium text-foreground shadow-soft backdrop-blur-xl">
+              <div className="mx-auto max-w-2xl lg:mx-0">
+                <div className="inline-flex items-center gap-2 rounded-full border border-primary/15 bg-background/85 px-4 text-sm font-medium text-foreground shadow-soft backdrop-blur-xl">
                   <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-                  Learn with focus — secure, curated resources for steady progress
+                  Learn with focus — secure, curated resources
                 </div>
 
-                <h1 className="mt-6 text-5xl font-semibold leading-[1.02] tracking-tight text-foreground md:text-6xl xl:text-7xl">
-                  All your <span className="text-gradient-primary">study material</span> in one place.
+                <h1 className="mt-6 text-4xl font-semibold leading-[1.02] tracking-tight text-foreground md:text-6xl">
+                  Concise notes and secure lectures for focused learning.
                 </h1>
 
-                <p className="mt-6 max-w-2xl text-lg leading-8 text-muted-foreground md:text-xl">
-                  Turn knowledge into skill: concise notes, guided examples, and practice problems to help you build confidence every day.
+                <p className="mt-4 max-w-xl text-base leading-7 text-muted-foreground md:text-lg">
+                  Clean notes, chapter-wise content and protected viewers — all in one place.
                 </p>
 
-                <div className="mt-8 flex flex-col gap-4 sm:flex-row">
-                  <Button variant="hero" size="xl" onClick={() => navigate('/auth')} className="group">
+                <div className="mt-8 flex gap-4">
+                  <Button
+                    variant="hero"
+                    size="lg"
+                    onClick={() => navigate('/auth')}
+                    className="group bg-gradient-to-r from-[hsl(175,80%,35%)] to-[hsl(195,90%,45%)] text-white shadow-glow px-6 py-3"
+                  >
                     Get Started Free
-                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                    <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
                   </Button>
-                  <Button variant="glass" size="xl" onClick={() => navigate('/auth')}>
-                    Explore the Platform
-                  </Button>
-                </div>
-
-                <div className="mt-10 grid gap-4 sm:grid-cols-3">
-                  <div className="rounded-2xl border border-border/60 bg-background/80 p-4 shadow-soft backdrop-blur">
-                    <div className="text-2xl font-semibold text-foreground">10K+</div>
-                    <div className="mt-1 text-sm text-muted-foreground">Students learning securely</div>
-                  </div>
-                  <div className="rounded-2xl border border-border/60 bg-background/80 p-4 shadow-soft backdrop-blur">
-                    <div className="text-2xl font-semibold text-foreground">500+</div>
-                    <div className="mt-1 text-sm text-muted-foreground">Protected lectures</div>
-                  </div>
-                  <div className="rounded-2xl border border-border/60 bg-background/80 p-4 shadow-soft backdrop-blur">
-                    <div className="text-2xl font-semibold text-foreground">99%</div>
-                    <div className="mt-1 text-sm text-muted-foreground">Controlled viewing</div>
-                  </div>
                 </div>
               </div>
 
-              <div className="relative mx-auto w-full max-w-[560px] lg:max-w-none">
-                <div
-                  className="absolute -inset-8 rounded-[2.5rem] bg-[radial-gradient(circle,rgba(16,185,129,0.12),transparent_55%)] blur-3xl"
-                  aria-hidden="true"
-                />
+              <div className="relative mx-auto w-full max-w-[420px] lg:max-w-none">
+                <LottieHero className="absolute inset-0 -z-10" />
+                <div className="absolute -inset-6 rounded-2xl bg-white/60 blur-sm" aria-hidden="true" />
 
-                <div className="relative mx-auto max-w-[560px] rounded-[2rem] border border-foreground/5 bg-white/60 p-4 shadow-[0_30px_90px_rgba(15,23,42,0.12)] backdrop-blur-2xl md:p-5">
-                  <div className="flex items-center justify-between rounded-[1.5rem] border border-border/60 bg-white/85 px-4 py-3 shadow-soft">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
-                        <BookOpen className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <div className="text-sm font-semibold text-foreground">Study Material Library</div>
-                        <div className="text-xs text-muted-foreground">Notes, slides, and practice files</div>
-                      </div>
-                    </div>
-                    <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-                      Organized
-                    </span>
-                  </div>
-
-                  <div className="mt-4 grid gap-4 md:grid-cols-2">
-                    <div className="rounded-[1.5rem] border border-border/60 bg-slate-950 p-5 text-white shadow-medium">
-                      <div className="flex items-center gap-2 text-xs uppercase tracking-[0.35em] text-white/60">
-                        <FileText className="h-4 w-4" />
-                        Lecture notes
-                      </div>
-                      <div className="mt-4 text-2xl font-semibold">Structured and easy to follow</div>
-                      <p className="mt-2 text-sm text-white/70">
-                        Clean notes, solved examples, and chapter-wise material for fast revision.
-                      </p>
-                      <div className="mt-5 rounded-2xl bg-white/10 p-3">
-                        <div className="flex items-center justify-between text-xs text-white/70">
-                          <span>Coverage</span>
-                          <span>Complete</span>
-                        </div>
-                        <div className="mt-3 h-2 rounded-full bg-white/15">
-                          <div className="h-2 w-[88%] rounded-full bg-gradient-to-r from-primary to-cyan-300" />
-                        </div>
-                      </div>
-                      <div className="mt-4 flex items-center gap-2 text-sm text-white/80">
-                        <CheckCircle2 className="h-4 w-4 text-emerald-300" />
-                        Updated study material in one secure place.
-                      </div>
-                    </div>
-
-                    <div className="grid gap-4">
-                      <div className="rounded-[1.5rem] border border-border/60 bg-background/95 p-4 shadow-soft">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
-                            <FileText className="h-5 w-5" />
-                          </div>
-                          <div>
-                            <div className="text-sm font-semibold text-foreground">Slides and handouts</div>
-                            <div className="text-xs text-muted-foreground">Easy to browse by subject</div>
-                          </div>
-                        </div>
-                        <div className="mt-4 rounded-[1.25rem] bg-muted/50 p-4">
-                          <div className="text-sm font-semibold text-foreground">Included resources</div>
-                          <div className="mt-2 text-sm text-muted-foreground">
-                            Notes, lecture slides, and practice sheets in one dashboard.
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="rounded-[1.5rem] border border-border/60 bg-background/95 p-4 shadow-soft">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Study dashboard</div>
-                            <div className="mt-2 text-lg font-semibold text-foreground">Simple browsing</div>
-                          </div>
-                          <div className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
-                            Ready
-                          </div>
-                        </div>
-                        <div className="mt-4 grid grid-cols-3 gap-3 text-center text-xs text-muted-foreground">
-                          <div className="rounded-2xl bg-muted/60 p-3">
-                            <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
-                              <BookOpen className="h-4 w-4" />
-                            </div>
-                            Notes
-                          </div>
-                          <div className="rounded-2xl bg-muted/60 p-3">
-                            <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
-                              <FileText className="h-4 w-4" />
-                            </div>
-                            Slides
-                          </div>
-                          <div className="rounded-2xl bg-muted/60 p-3">
-                            <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
-                              <Lock className="h-4 w-4" />
-                            </div>
-                            Secure
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                <div className="relative z-10 mx-auto max-w-[420px] rounded-2xl border border-foreground/6 bg-white/70 p-6 shadow-soft backdrop-blur-md md:p-6">
+                  <div className="text-sm font-medium text-muted-foreground">Preview</div>
+                  <div className="mt-3 h-48 rounded-lg bg-slate-950" />
                 </div>
               </div>
             </div>
@@ -259,7 +155,7 @@ const Index = () => {
             <div className="max-w-6xl mx-auto">
               <div className="landing-section-heading mx-auto mb-16 max-w-3xl text-center">
                 <h2 className="text-4xl md:text-5xl font-bold mb-4">
-                  Why Choose <span className="text-gradient-primary">LectureVault?</span>
+                  Why Choose <span className="text-gradient-primary">Out from Cumfurt?</span>
                 </h2>
                 <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
                   Advanced security features protect your premium content while providing seamless access for learners.
@@ -494,7 +390,7 @@ const Index = () => {
                   Frequently Asked <span className="text-gradient-primary">Questions</span>
                 </h2>
                 <p className="text-lg text-muted-foreground">
-                  Everything you need to know about LectureVault.
+                  Everything you need to know about Out from Cumfurt.
                 </p>
               </div>
 
@@ -515,7 +411,7 @@ const Index = () => {
                     <span className="font-semibold">Can I access lectures on mobile devices?</span>
                   </AccordionTrigger>
                   <AccordionContent className="text-muted-foreground leading-relaxed">
-                    Yes! LectureVault is fully responsive and works seamlessly on desktop, tablet, and mobile devices. 
+                    Yes! Out from Cumfurt is fully responsive and works seamlessly on desktop, tablet, and mobile devices. 
                     All security features are maintained across all platforms to ensure your content remains protected.
                   </AccordionContent>
                 </AccordionItem>
@@ -561,7 +457,7 @@ const Index = () => {
                 Ready to Start Learning?
               </h2>
               <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-                Join thousands of students already learning on LectureVault. Get started today and access premium content securely.
+                Join thousands of students already learning on Out from Cumfurt. Get started today and access premium content securely.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Button 
@@ -595,7 +491,7 @@ const Index = () => {
                     <div className="w-8 h-8 rounded-lg gradient-primary flex items-center justify-center">
                       <BookOpen className="w-4 h-4 text-primary-foreground" />
                     </div>
-                    <span className="font-bold text-lg text-foreground">LectureVault</span>
+                    <span className="font-bold text-lg text-foreground">Out from Cumfurt</span>
                   </div>
                   <p className="text-sm text-muted-foreground">
                     Secure lecture notes platform for serious learners. Protecting your premium content.
@@ -627,7 +523,7 @@ const Index = () => {
                 </div>
               </div>
               <div className="pt-8 border-t border-border/50 text-center text-sm text-muted-foreground">
-                © 2024 LectureVault. All rights reserved. Built for secure learning.
+                © 2026 Out from Cumfurt. All rights reserved. Built for secure learning.
               </div>
             </div>
             </div>
