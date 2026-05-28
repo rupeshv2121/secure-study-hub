@@ -1,0 +1,18 @@
+const YouTubeSection = () => {
+  return (
+    <section className="container mx-auto px-4 py-12 max-w-6xl">
+      <div className="rounded-2xl border border-border/50 bg-background/50 p-6 shadow-soft text-center">
+        <h3 className="text-2xl font-semibold text-foreground mb-2">Free lectures on YouTube</h3>
+        <p className="text-muted-foreground mb-4">Follow our YouTube channel for free lectures and recorded sessions from paid batches.</p>
+        <a href="https://www.youtube.com/@outfromcumfurt" target="_blank" rel="noreferrer" className="inline-block">
+          <div className="inline-flex items-center gap-2 rounded-md bg-red-600 text-white px-4 py-2">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M23.5 6.2s-.2-1.7-.8-2.4c-.8-.9-1.7-.9-2.1-1-3-.2-7.5-.2-7.5-.2h-.1s-4.6 0-7.5.2c-.4.1-1.4.1-2.1 1-.6.7-.8 2.4-.8 2.4S0 8 0 9.8v1.5C0 13.9.6 15.6.6 15.6s.2 1.6.8 2.4c.8.9 1.9.9 2.4 1 1.7.1 7.3.2 7.3.2s4.6 0 7.5-.2c.4-.1 1.4-.1 2.1-1 .6-.7.8-2.4.8-2.4s.6-1.7.6-3.5v-1.5c0-1.8-.6-3.6-.6-3.6z"/></svg>
+            <span>Visit our YouTube channel</span>
+          </div>
+        </a>
+      </div>
+    </section>
+  );
+};
+
+export default YouTubeSection;

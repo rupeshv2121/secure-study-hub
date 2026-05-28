@@ -21,7 +21,7 @@ import { AlertCircle, CheckCircle, IndianRupee, Loader2, QrCode, Search, Upload 
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import paymentQrImage from '../../public/paymentQrImage.jpeg';
+import paymentQrImage from '../public/paymentQrImage.jpeg';
  
 const paymentUpiId = import.meta.env.VITE_PAYMENT_UPI_ID as string | undefined;
 
