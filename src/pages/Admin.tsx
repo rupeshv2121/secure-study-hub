@@ -1,13 +1,14 @@
 import BackButton from '@/components/BackButton';
 import Navbar from '@/components/Navbar';
 import AdminCategories from '@/components/admin/AdminCategories';
+import AdminFeedback from '@/components/admin/AdminFeedback';
 import AdminLectures from '@/components/admin/AdminLectures';
 import AdminPurchases from '@/components/admin/AdminPurchases';
 import AdminStats from '@/components/admin/AdminStats';
 import AdminSubjects from '@/components/admin/AdminSubjects';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
-import { BarChart3, BookOpen, FileText, FolderOpen } from 'lucide-react';
+import { BarChart3, BookOpen, FileText, FolderOpen, MessageSquare } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -46,7 +47,7 @@ const Admin = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full max-w-2xl grid-cols-5">
+          <TabsList className="grid w-full max-w-4xl grid-cols-6">
             <TabsTrigger value="lectures" className="gap-2">
               <FileText className="w-4 h-4" />
               <span className="hidden sm:inline">Lectures</span>
@@ -66,6 +67,10 @@ const Admin = () => {
             <TabsTrigger value="stats" className="gap-2">
               <BarChart3 className="w-4 h-4" />
               <span className="hidden sm:inline">Stats</span>
+            </TabsTrigger>
+            <TabsTrigger value="feedback" className="gap-2">
+              <MessageSquare className="w-4 h-4" />
+              <span className="hidden sm:inline">Feedback</span>
             </TabsTrigger>
           </TabsList>
 
@@ -87,6 +92,10 @@ const Admin = () => {
 
           <TabsContent value="stats" className="space-y-6">
             <AdminStats />
+          </TabsContent>
+
+          <TabsContent value="feedback" className="space-y-6">
+            <AdminFeedback />
           </TabsContent>
         </Tabs>
       </main>
