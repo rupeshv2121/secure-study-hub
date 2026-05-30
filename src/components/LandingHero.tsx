@@ -25,7 +25,7 @@ const LandingHero = () => {
             <div className="mt-8 flex flex-wrap gap-4">
               <Link to="/auth">
                 <Button className="bg-gradient-to-r from-[hsl(175,80%,35%)] to-[hsl(195,90%,45%)] text-white px-6 py-3" size="lg">
-                  Get Started — Free
+                  Get Started
                 </Button>
               </Link>
               <Link to="/subjects">

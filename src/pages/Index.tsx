@@ -1,5 +1,6 @@
 import apiFetch from '@/api/client';
 import CategoryCard from '@/components/CategoryCard';
+import FAQSection from '@/components/FAQSection';
 import FeedbackFab from '@/components/FeedbackFab';
 import LandingHero from '@/components/LandingHero';
 import Navbar from '@/components/Navbar';
@@ -79,6 +80,7 @@ const Index = () => {
         <main id="home" className="animate-fade-in">
           <LandingHero />
           <YouTubeSection />
+          <FAQSection />
 
           <section className="container mx-auto px-4 py-20 bg-transparent">
             <div className="max-w-4xl mx-auto text-center p-12 rounded-3xl border border-border/40 bg-background/55 shadow-soft backdrop-blur-2xl">

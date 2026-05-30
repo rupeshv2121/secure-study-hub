@@ -25,14 +25,14 @@ const FeedbackFab = () => {
         </button>
       </DialogTrigger>
 
-      <DialogContent className="right-6 bottom-24 left-auto top-auto translate-x-0 translate-y-0 w-[360px] max-w-[90vw] h-[520px] overflow-hidden p-0">
-        <div className="flex flex-col h-full">
-          <DialogHeader className="px-4 py-3 border-b">
+      <DialogContent className="right-4 top-auto left-auto bottom-4 translate-x-0 translate-y-0 w-[min(440px,calc(100vw-2rem))] h-[min(82vh,760px)] overflow-hidden p-0 rounded-3xl border-border/60 bg-background shadow-2xl">
+        <div className="flex h-full flex-col">
+          <DialogHeader className="border-b border-border/60 px-4 py-3 text-left">
             <DialogTitle>Send Feedback</DialogTitle>
             <DialogDescription className="text-sm text-muted-foreground">We appreciate your thoughts — send feedback anytime.</DialogDescription>
           </DialogHeader>
-          <div className="p-4 overflow-auto flex-1 bg-gradient-to-b from-white/60 to-white/40">
-            <FeedbackForm onSuccess={() => setOpen(false)} closeAfterMs={1000} />
+          <div className="flex-1 overflow-hidden bg-gradient-to-b from-white/60 to-white/40">
+            <FeedbackForm onSuccess={() => setOpen(true)} />
           </div>
         </div>
       </DialogContent>
