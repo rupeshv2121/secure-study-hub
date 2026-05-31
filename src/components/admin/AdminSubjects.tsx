@@ -43,7 +43,7 @@ const AdminSubjects = () => {
   const fetchData = async () => {
     try {
       const [subjectsRes, categoriesRes] = await Promise.all([
-        apiFetch('/subjects'),
+        apiFetch('/subjects?includeInactive=true'),
         apiFetch('/categories'),
       ]);
 

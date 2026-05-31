@@ -2,6 +2,12 @@ import apiFetch from '@/api/client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import type { AdminPurchaseRequest } from '@/interfaces/admin';
 import { CheckCircle2, ChevronDown, CircleSlash, Loader2, ScanSearch, ShieldCheck } from 'lucide-react';
@@ -38,6 +44,7 @@ const AdminPurchases = () => {
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [zoomedScreenshot, setZoomedScreenshot] = useState<string | null>(null);
 
   const fetchRequests = async () => {
     setLoading(true);
@@ -47,7 +54,7 @@ const AdminPurchases = () => {
       const requestsData = body?.data || [];
       // Try to enrich requests with subject data when the API doesn't include it.
       try {
-        const subsRes = await apiFetch('/subjects');
+        const subsRes = await apiFetch('/subjects?includeInactive=true');
         const subsBody = await subsRes.json();
         const subs = subsBody?.data || [];
         const subjectMap = new Map<string, any>();
@@ -212,9 +219,17 @@ const AdminPurchases = () => {
                     </p>
                   </div>
                   {request.screenshotUrl ? (
-                    <a href={request.screenshotUrl} target="_blank" rel="noreferrer">
-                      <img src={request.screenshotUrl} alt="Payment screenshot" className="h-56 w-full rounded-xl border object-cover" />
-                    </a>
+                    <button
+                      type="button"
+                      onClick={() => setZoomedScreenshot(request.screenshotUrl || null)}
+                      className="block w-full overflow-hidden rounded-xl border text-left transition-transform hover:scale-[1.01]"
+                    >
+                      <img
+                        src={request.screenshotUrl}
+                        alt="Payment screenshot"
+                        className="h-56 w-full object-cover"
+                      />
+                    </button>
                   ) : (
                     <div className="flex h-56 items-center justify-center rounded-xl border border-dashed text-sm text-muted-foreground">
                       No screenshot available
@@ -275,6 +290,23 @@ const AdminPurchases = () => {
           </Card>
         ))}
       </div>
+
+      <Dialog open={Boolean(zoomedScreenshot)} onOpenChange={(open) => !open && setZoomedScreenshot(null)}>
+        <DialogContent className="max-w-5xl p-0 overflow-hidden sm:rounded-2xl">
+          <DialogHeader className="border-b px-4 py-3 text-left">
+            <DialogTitle>Payment Screenshot</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[80vh] overflow-auto bg-black/90 p-4">
+            {zoomedScreenshot && (
+              <img
+                src={zoomedScreenshot}
+                alt="Zoomed payment screenshot"
+                className="mx-auto max-h-[75vh] w-auto max-w-full rounded-lg shadow-2xl"
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

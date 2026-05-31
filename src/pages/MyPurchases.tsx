@@ -101,7 +101,7 @@ const MyPurchases = () => {
       const body = await res.json();
       const data = (body?.data || []) as RawPurchase[];
 
-      const subjectsRes = await apiFetch('/subjects');
+      const subjectsRes = await apiFetch('/subjects?includeInactive=true');
       const subjectsBody = await subjectsRes.json();
       const subjects = (subjectsBody?.data || []) as RawSubject[];
       const subjectMap = new Map<string, RawSubject>();

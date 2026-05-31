@@ -195,7 +195,7 @@ const AdminLectures = () => {
       const [lecturesRes, categoriesRes, subjectsRes] = await Promise.all([
         apiFetch('/lectures'),
         apiFetch('/categories'),
-        apiFetch('/subjects'),
+        apiFetch('/subjects?includeInactive=true'),
       ]);
 
       const lbody = await lecturesRes.json();
