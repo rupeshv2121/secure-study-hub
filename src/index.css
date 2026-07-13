@@ -178,30 +178,6 @@
     }
   }
 
-  @keyframes loader-pulse {
-    0%,
-    100% {
-      transform: scale(0.95);
-      opacity: 0.6;
-    }
-    50% {
-      transform: scale(1.05);
-      opacity: 1;
-    }
-  }
-
-  @keyframes loader-bar {
-    0%,
-    100% {
-      transform: scaleX(0.85);
-      opacity: 0.45;
-    }
-    50% {
-      transform: scaleX(1);
-      opacity: 1;
-    }
-  }
-
   .loader-orbit {
     animation: loader-orbit 14s linear infinite;
     transform-origin: center;
@@ -215,30 +191,116 @@
     animation-duration: 10s;
   }
 
-  .loader-pulse {
-    animation: loader-pulse 2.6s ease-in-out infinite;
+  /* ---- Modern loader (SiteLoader / PageLoader) ---- */
+  @keyframes loader-spin {
+    to {
+      transform: rotate(360deg);
+    }
   }
 
-  .loader-spin-slow {
-    animation-duration: 12s;
+  @keyframes loader-mark {
+    0%,
+    100% {
+      transform: translateY(0) scale(1);
+    }
+    50% {
+      transform: translateY(-3px) scale(1.04);
+    }
   }
 
-  .loader-spin-reverse {
-    animation-duration: 8s;
+  @keyframes loader-track {
+    0% {
+      transform: translateX(-140%);
+    }
+    100% {
+      transform: translateX(320%);
+    }
+  }
+
+  @keyframes loader-aurora {
+    0% {
+      transform: translate3d(-2%, -1%, 0) scale(1);
+    }
+    100% {
+      transform: translate3d(2%, 2%, 0) scale(1.12);
+    }
+  }
+
+  .site-loader {
+    background: hsl(var(--background));
+  }
+
+  .site-loader__aurora {
+    position: absolute;
+    inset: -25%;
+    background:
+      radial-gradient(38% 38% at 20% 25%, hsl(var(--primary) / 0.22), transparent 70%),
+      radial-gradient(42% 42% at 80% 18%, hsl(var(--accent) / 0.2), transparent 70%),
+      radial-gradient(48% 48% at 62% 90%, hsl(var(--primary) / 0.14), transparent 70%);
+    filter: blur(28px);
+    animation: loader-aurora 12s ease-in-out infinite alternate;
+  }
+
+  .site-loader__grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(to right, hsl(var(--foreground) / 0.045) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(var(--foreground) / 0.045) 1px, transparent 1px);
+    background-size: 46px 46px;
+    -webkit-mask-image: radial-gradient(circle at center, #000, transparent 72%);
+    mask-image: radial-gradient(circle at center, #000, transparent 72%);
+  }
+
+  .loader-ring {
+    background: conic-gradient(
+      from 90deg,
+      transparent 0deg,
+      hsl(var(--primary) / 0.08) 80deg,
+      hsl(var(--primary) / 0.45) 210deg,
+      hsl(var(--accent)) 330deg,
+      hsl(var(--primary)) 360deg
+    );
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+    animation: loader-spin 1.1s linear infinite;
+  }
+
+  .loader-ring--reverse {
+    animation-duration: 1.7s;
     animation-direction: reverse;
   }
 
-  .loader-bar {
-    animation: loader-bar 1.8s ease-in-out infinite;
-    transform-origin: center;
+  .loader-ring--sm {
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px));
+    animation-duration: 0.9s;
   }
 
-  .loader-bar-delay-1 {
-    animation-delay: 0.2s;
+  .loader-mark {
+    animation: loader-mark 3s ease-in-out infinite;
   }
 
-  .loader-bar-delay-2 {
-    animation-delay: 0.4s;
+  .loader-track__fill {
+    width: 42%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      hsl(var(--primary)),
+      hsl(var(--accent)),
+      transparent
+    );
+    animation: loader-track 1.3s ease-in-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .loader-ring,
+    .loader-ring--reverse,
+    .loader-mark,
+    .loader-track__fill,
+    .site-loader__aurora {
+      animation: none;
+    }
   }
 
   .gradient-primary {

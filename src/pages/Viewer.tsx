@@ -1,12 +1,13 @@
 import apiFetch from '@/api/client';
 import BackButton from '@/components/BackButton';
 import Navbar from '@/components/Navbar';
+import PageLoader from '@/components/PageLoader';
 import SecureViewer from '@/components/SecureViewer';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSubjectAccess } from '@/hooks/useSubjectAccess';
 import type { LectureViewerLecture as Lecture, Slide } from '@/interfaces/pages/viewer';
-import { Loader2, Lock } from 'lucide-react';
+import { Lock } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
@@ -93,7 +94,7 @@ const Viewer = () => {
   if (authLoading || accessLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center gradient-hero">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <PageLoader label="Preparing your lecture…" />
       </div>
     );
   }

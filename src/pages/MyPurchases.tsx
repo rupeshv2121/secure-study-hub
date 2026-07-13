@@ -1,12 +1,13 @@
 import apiFetch from '@/api/client';
 import BackButton from '@/components/BackButton';
 import Navbar from '@/components/Navbar';
+import PageLoader from '@/components/PageLoader';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Purchase } from '@/interfaces/pages/mypurchases';
-import { Calendar, ChevronDown, ChevronUp, Loader2, Package, ScanSearch, ShieldCheck, XCircle } from 'lucide-react';
+import { Calendar, ChevronDown, ChevronUp, Package, ScanSearch, ShieldCheck, XCircle } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -175,7 +176,7 @@ const MyPurchases = () => {
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center gradient-hero">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <PageLoader label="Loading your purchases…" />
       </div>
     );
   }
@@ -192,9 +193,7 @@ const MyPurchases = () => {
         </div>
 
         {loading ? (
-          <div className="flex justify-center py-12">
-            <Loader2 className="w-8 h-8 animate-spin text-primary" />
-          </div>
+          <PageLoader fullScreen={false} label="Loading your purchases…" />
         ) : purchases.length === 0 ? (
           <Card className="border-dashed">
             <CardContent className="flex flex-col items-center justify-center py-12">

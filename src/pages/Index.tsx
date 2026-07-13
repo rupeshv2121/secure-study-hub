@@ -5,12 +5,14 @@ import FeatureGrid from '@/components/FeatureGrid';
 import FeedbackFab from '@/components/FeedbackFab';
 import LandingHero from '@/components/LandingHero';
 import Navbar from '@/components/Navbar';
+import PageLoader from '@/components/PageLoader';
+import QuoteBanner from '@/components/QuoteBanner';
 import Testimonials from '@/components/Testimonials';
 import { Button } from '@/components/ui/button';
 import YouTubeSection from '@/components/YouTubeSection';
 import { useAuth } from '@/contexts/AuthContext';
 import type { IndexCategory as Category } from '@/interfaces/pages/index';
-import { ArrowRight, BookOpen, CreditCard, Download, Loader2, Search } from 'lucide-react';
+import { ArrowRight, BookOpen, CreditCard, Download, Search } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -87,7 +89,7 @@ const Index = () => {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center gradient-hero">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <PageLoader label="Loading your study hub…" />
       </div>
     );
   }
@@ -130,6 +132,8 @@ const Index = () => {
               ))}
             </div>
           </section>
+
+          <QuoteBanner />
 
           <YouTubeSection />
           <Testimonials />
@@ -218,15 +222,15 @@ const Index = () => {
         </main>
       ) : (
         <main className="container mx-auto px-4 py-8 max-w-[78rem]">
-          <div className="mb-8 animate-fade-in">
+          <div className="mb-6 animate-fade-in">
             <h1 className="text-3xl font-bold text-foreground mb-2">Welcome back{user.name ? `, ${user.name}` : ''}</h1>
             <p className="text-muted-foreground">Browse categories below</p>
           </div>
 
+          <QuoteBanner className="!px-0 !py-0 mb-8" />
+
           {loadingCategories ? (
-            <div className="flex justify-center py-12">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            </div>
+            <PageLoader fullScreen={false} label="Loading categories…" />
           ) : (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {categories.map((cat, index) => (

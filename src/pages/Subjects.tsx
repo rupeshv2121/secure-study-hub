@@ -1,6 +1,7 @@
 import apiFetch from '@/api/client';
 import BackButton from '@/components/BackButton';
 import Navbar from '@/components/Navbar';
+import PageLoader from '@/components/PageLoader';
 import SubjectCard from '@/components/SubjectCard';
 import { Button } from '@/components/ui/button';
 import {
@@ -266,7 +267,7 @@ const Subjects = () => {
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center gradient-hero">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <PageLoader label="Loading subjects…" />
       </div>
     );
   }
@@ -324,9 +325,7 @@ const Subjects = () => {
 
         {/* Subjects Grid */}
         {loading ? (
-          <div className="flex justify-center py-12">
-            <Loader2 className="w-8 h-8 animate-spin text-primary" />
-          </div>
+          <PageLoader fullScreen={false} label="Loading subjects…" />
         ) : filteredSubjects.length > 0 ? (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredSubjects.map((sub, index) => (
