@@ -2,12 +2,13 @@ import apiFetch from '@/api/client';
 import BackButton from '@/components/BackButton';
 import LectureCard from '@/components/LectureCard';
 import Navbar from '@/components/Navbar';
+import PageLoader from '@/components/PageLoader';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSubjectAccess } from '@/hooks/useSubjectAccess';
 import type { CategoryPageItem as Category, LecturePageItem as Lecture, SubjectPageItem as Subject } from '@/interfaces/pages/lectures';
-import { Loader2, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
@@ -94,7 +95,7 @@ const Lectures = () => {
   if (authLoading || accessLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center gradient-hero">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <PageLoader label="Loading lectures…" />
       </div>
     );
   }
@@ -163,9 +164,7 @@ const Lectures = () => {
 
         {/* Lectures Grid */}
         {loading ? (
-          <div className="flex justify-center py-12">
-            <Loader2 className="w-8 h-8 animate-spin text-primary" />
-          </div>
+          <PageLoader fullScreen={false} label="Loading lectures…" />
         ) : filteredLectures.length > 0 ? (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredLectures.map((lec, index) => {

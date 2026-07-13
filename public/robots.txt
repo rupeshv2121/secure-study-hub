@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+
+# Block authenticated / non-indexable app routes
+Disallow: /admin
+Disallow: /profile
+Disallow: /my-purchases
+Disallow: /viewer/
+
+Sitemap: https://secure-study-hub-frontend.vercel.app/sitemap.xml

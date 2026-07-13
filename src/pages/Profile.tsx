@@ -1,6 +1,7 @@
 import apiFetch from '@/api/client';
 import BackButton from '@/components/BackButton';
 import Navbar from '@/components/Navbar';
+import PageLoader from '@/components/PageLoader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -107,7 +108,7 @@ const Profile = () => {
   if (authLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <PageLoader label="Loading your profile…" />
       </div>
     );
   }

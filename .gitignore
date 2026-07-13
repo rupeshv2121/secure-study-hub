@@ -12,6 +12,16 @@ dist
 dist-ssr
 *.local
 
+# Local, machine-specific env overrides (may contain personal/secret values).
+# Note: the committed .env / .env.development / .env.production hold ONLY public
+# VITE_* client config (they are bundled into the browser), so they are safe to
+# commit and are needed for the Vercel build.
+.env.local
+.env.*.local
+# Never commit backend secrets or service-account keys
+*-service-account*.json
+secure-study-hub-*.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

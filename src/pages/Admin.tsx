@@ -1,5 +1,6 @@
 import BackButton from '@/components/BackButton';
 import Navbar from '@/components/Navbar';
+import PageLoader from '@/components/PageLoader';
 import AdminCategories from '@/components/admin/AdminCategories';
 import AdminFeedback from '@/components/admin/AdminFeedback';
 import AdminLectures from '@/components/admin/AdminLectures';
@@ -26,7 +27,7 @@ const Admin = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-pulse text-muted-foreground">Loading...</div>
+        <PageLoader label="Loading admin dashboard…" />
       </div>
     );
   }
