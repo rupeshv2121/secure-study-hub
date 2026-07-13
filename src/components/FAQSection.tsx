@@ -5,7 +5,7 @@ const faqs = [
   {
     question: 'How do students access the notes and lectures?',
     answer:
-      'Students can browse subjects after sign-in and access the materials they are entitled to. Premium content is protected through the platform flow and secure viewer.',
+      'After signing in, browse subjects and purchase what you need. Once your purchase is approved, the material is unlocked in your account and you can download the notes to study offline.',
   },
   {
     question: 'Can I leave feedback from the website?',
@@ -36,7 +36,7 @@ const faqs = [
 
 const FAQSection = () => {
   return (
-    <section className="container mx-auto max-w-[72rem] px-4 py-20">
+    <section id="faq" className="container mx-auto max-w-[72rem] px-4 py-20">
       
         <Card className="border-border/40 bg-background/70 shadow-soft backdrop-blur-xl">
           <CardContent className="p-6 sm:p-8">

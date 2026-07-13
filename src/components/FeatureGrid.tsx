@@ -1,37 +1,56 @@
-import { Eye, Lock, Shield } from 'lucide-react';
+import { Download, FolderTree, Smartphone, Youtube } from 'lucide-react';
 
-const Feature = ({ title, desc, icon }: { title: string; desc: string; icon: React.ReactNode }) => (
-  <div className="p-6 rounded-2xl border border-border/50 bg-background/50 shadow-soft backdrop-blur-xl hover:shadow-glow transition-all">
-    <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">{icon}</div>
-    <h3 className="text-lg font-semibold text-foreground mb-2">{title}</h3>
-    <p className="text-sm text-muted-foreground">{desc}</p>
-  </div>
-);
+const features = [
+  {
+    title: 'Download & keep',
+    desc: 'Buy once and download your notes as PDFs. Study offline whenever you like — they stay yours.',
+    icon: Download,
+  },
+  {
+    title: 'Curated by subject',
+    desc: 'Every lecture and note is sorted into clear categories and subjects, so you always know what to study next.',
+    icon: FolderTree,
+  },
+  {
+    title: 'Free lectures on YouTube',
+    desc: 'Preview recorded sessions from paid batches on our channel before you ever spend a rupee.',
+    icon: Youtube,
+  },
+  {
+    title: 'Learn on any device',
+    desc: 'The library and viewer adapt to desktop, tablet, and phone so you can pick up right where you left off.',
+    icon: Smartphone,
+  },
+];
 
 const FeatureGrid = () => {
   return (
-    <section className="container mx-auto px-4 py-20 max-w-6xl">
-      <div className="max-w-4xl mx-auto text-center mb-10">
-        <h2 className="text-3xl md:text-4xl font-bold text-foreground">Secure learning</h2>
-        <p className="mt-3 text-muted-foreground">Maintain control of your content while giving learners frictionless access.</p>
+    <section id="features" className="container mx-auto max-w-6xl px-4 py-20">
+      <div className="mx-auto mb-12 max-w-2xl text-center">
+        <span className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">
+          Why students choose us
+        </span>
+        <h2 className="mt-3 text-3xl font-bold text-foreground md:text-4xl">
+          Everything you need to study, nothing in the way
+        </h2>
+        <p className="mt-3 text-muted-foreground">
+          Straightforward access to quality material — buy what you need and keep it.
+        </p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-3">
-        <Feature
-          title="Protected Content"
-          desc="Anti-screenshot, download prevention, and print blocking keep your materials safe."
-          icon={<Shield className="w-5 h-5 text-primary" />}
-        />
-        <Feature
-          title="View-Only Access"
-          desc="Students can study online without the ability to save or copy content."
-          icon={<Eye className="w-5 h-5 text-primary" />}
-        />
-        <Feature
-          title="Dynamic Watermarks"
-          desc="Identify users with subtle, tamper-resistant watermarks on each slide."
-          icon={<Lock className="w-5 h-5 text-primary" />}
-        />
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        {features.map(({ title, desc, icon: Icon }) => (
+          <div
+            key={title}
+            className="group rounded-2xl border border-border/50 bg-background/60 p-6 shadow-soft backdrop-blur-sm transition-all hover:-translate-y-1 hover:border-primary/30 hover:shadow-medium"
+          >
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+              <Icon className="h-6 w-6" />
+            </div>
+            <h3 className="mb-2 text-lg font-semibold text-foreground">{title}</h3>
+            <p className="text-sm leading-6 text-muted-foreground">{desc}</p>
+          </div>
+        ))}
       </div>
     </section>
   );
