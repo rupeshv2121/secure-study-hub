@@ -1,16 +1,36 @@
 import apiFetch from '@/api/client';
 import CategoryCard from '@/components/CategoryCard';
 import FAQSection from '@/components/FAQSection';
+import FeatureGrid from '@/components/FeatureGrid';
 import FeedbackFab from '@/components/FeedbackFab';
 import LandingHero from '@/components/LandingHero';
 import Navbar from '@/components/Navbar';
+import Testimonials from '@/components/Testimonials';
 import { Button } from '@/components/ui/button';
 import YouTubeSection from '@/components/YouTubeSection';
 import { useAuth } from '@/contexts/AuthContext';
 import type { IndexCategory as Category } from '@/interfaces/pages/index';
-import { ArrowRight, BookOpen, Loader2 } from 'lucide-react';
+import { ArrowRight, BookOpen, CreditCard, Download, Loader2, Search } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+
+const steps = [
+  {
+    icon: Search,
+    title: 'Browse & pick',
+    desc: 'Explore subjects by category and choose the notes or lectures you need.',
+  },
+  {
+    icon: CreditCard,
+    title: 'Purchase',
+    desc: 'Complete your purchase — it is reviewed and approved within 24 hours.',
+  },
+  {
+    icon: Download,
+    title: 'Download & study',
+    desc: 'Your content unlocks in your account. Download it and study offline, anytime.',
+  },
+];
 
 type SubjectRecord = {
   is_active?: boolean;
@@ -77,21 +97,78 @@ const Index = () => {
       <Navbar />
 
       {!user ? (
-        <main id="home" className="animate-fade-in">
+        <main className="animate-fade-in">
           <LandingHero />
+          <FeatureGrid />
+
+          {/* How it works */}
+          <section id="how-it-works" className="container mx-auto max-w-6xl px-4 py-20">
+            <div className="mx-auto mb-12 max-w-2xl text-center">
+              <span className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">
+                How it works
+              </span>
+              <h2 className="mt-3 text-3xl font-bold text-foreground md:text-4xl">
+                From browsing to studying in three steps
+              </h2>
+            </div>
+
+            <div className="grid gap-6 md:grid-cols-3">
+              {steps.map((step, index) => (
+                <div
+                  key={step.title}
+                  className="relative rounded-2xl border border-border/50 bg-background/60 p-8 text-center shadow-soft backdrop-blur-sm"
+                >
+                  <span className="absolute right-5 top-4 text-5xl font-bold text-primary/10">
+                    {index + 1}
+                  </span>
+                  <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                    <step.icon className="h-6 w-6" />
+                  </div>
+                  <h3 className="mb-2 text-lg font-semibold text-foreground">{step.title}</h3>
+                  <p className="text-sm leading-6 text-muted-foreground">{step.desc}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
           <YouTubeSection />
+          <Testimonials />
           <FAQSection />
 
-          <section className="container mx-auto px-4 py-20 bg-transparent">
-            <div className="max-w-4xl mx-auto text-center p-12 rounded-3xl border border-border/40 bg-background/55 shadow-soft backdrop-blur-2xl">
-              <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-4">Ready to Start Learning?</h2>
-              <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">Join thousands of students already learning on Out from Cumfurt. Get started today and access premium content securely.</p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Button variant="hero" size="xl" onClick={() => navigate('/auth')} className="text-white hover:bg-background/70">
-                  Get Started Free
-                  <ArrowRight className="w-5 h-5" />
-                </Button>
-                <Button variant="outline" size="xl" onClick={() => navigate('/auth')} className="text-black hover:text-muted-foreground hover:bg-background/70">Sign In</Button>
+          {/* Final CTA */}
+          <section className="container mx-auto px-4 py-20">
+            <div className="relative mx-auto max-w-4xl overflow-hidden rounded-3xl gradient-primary p-10 text-center shadow-medium sm:p-14">
+              <div
+                aria-hidden
+                className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-white/10 blur-3xl"
+              />
+              <div className="relative">
+                <h2 className="text-3xl font-bold text-primary-foreground md:text-4xl">
+                  Ready to start learning?
+                </h2>
+                <p className="mx-auto mt-4 max-w-2xl text-lg text-primary-foreground/85">
+                  Join students already learning on Out from Cumfurt. Get started today, purchase the
+                  notes you need, and download them to keep.
+                </p>
+                <div className="mt-8 flex flex-col justify-center gap-4 sm:flex-row">
+                  <Button
+                    variant="glass"
+                    size="xl"
+                    onClick={() => navigate('/auth')}
+                    className="bg-white text-primary hover:bg-white/90"
+                  >
+                    Get Started Free
+                    <ArrowRight className="h-5 w-5" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="xl"
+                    onClick={() => navigate('/auth')}
+                    className="border-white/60 bg-transparent text-primary-foreground hover:bg-white/10 hover:text-primary-foreground"
+                  >
+                    Sign In
+                  </Button>
+                </div>
               </div>
             </div>
           </section>
@@ -107,7 +184,7 @@ const Index = () => {
                       </div>
                       <span className="font-bold text-lg text-foreground">Out from Cumfurt</span>
                     </div>
-                    <p className="text-sm text-muted-foreground">Secure lecture notes platform for serious learners. Protecting your premium content.</p>
+                    <p className="text-sm text-muted-foreground">Curated notes and recorded lectures for serious learners. Buy what you need and download it to keep.</p>
                   </div>
                   <div>
                     <h4 className="font-semibold text-foreground mb-4">Platform</h4>
