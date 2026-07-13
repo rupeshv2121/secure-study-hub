@@ -34,8 +34,7 @@ const Navbar = () => {
   };
 
   return (
-    <nav className="sticky top-0 z-50 border-b border-border/60 bg-background/70 backdrop-blur-2xl max-w-[80%] mx-auto border border-rounded-lg shadow-soft  rounded-3xl">
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
+    <nav className="sticky top-0 z-50 bg-gradient-to-b from-background/85 to-background/55 backdrop-blur-xl">
       <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6 ">
         <Link to="/" className="group flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/15 to-primary/5 text-primary shadow-soft transition-transform group-hover:-translate-y-0.5 group-hover:shadow-glow">
@@ -72,13 +71,6 @@ const Navbar = () => {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
-          {!user && (
-            <div className="hidden items-center gap-2 rounded-full border border-primary/15 bg-primary/8 px-3 py-1.5 text-xs font-medium text-primary lg:flex">
-              <Sparkles className="h-3.5 w-3.5" />
-              Guided learning
-            </div>
-          )}
-
           {user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

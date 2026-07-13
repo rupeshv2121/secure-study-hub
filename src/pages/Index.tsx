@@ -186,12 +186,12 @@ const Index = () => {
                       <div className="w-8 h-8 rounded-lg gradient-primary flex items-center justify-center">
                         <BookOpen className="w-4 h-4 text-primary-foreground" />
                       </div>
-                      <span className="font-bold text-lg text-foreground">Out from Cumfurt</span>
+                      <span className="font-bold text-lg text-white">Out from Cumfurt</span>
                     </div>
                     <p className="text-sm text-muted-foreground">Curated notes and recorded lectures for serious learners. Buy what you need and download it to keep.</p>
                   </div>
                   <div>
-                    <h4 className="font-semibold text-foreground mb-4">Platform</h4>
+                    <h4 className="font-semibold text-white mb-4">Platform</h4>
                     <ul className="space-y-2 text-sm text-muted-foreground">
                       <li><a href="#" className="hover:text-foreground transition-colors">Features</a></li>
                       <li><a href="#" className="hover:text-foreground transition-colors">Security</a></li>
@@ -199,7 +199,7 @@ const Index = () => {
                     </ul>
                   </div>
                   <div>
-                    <h4 className="font-semibold text-foreground mb-4">Resources</h4>
+                    <h4 className="font-semibold text-white mb-4">Resources</h4>
                     <ul className="space-y-2 text-sm text-muted-foreground">
                       <li><a href="#" className="hover:text-foreground transition-colors">Documentation</a></li>
                       <li><a href="#" className="hover:text-foreground transition-colors">Help Center</a></li>
@@ -207,7 +207,7 @@ const Index = () => {
                     </ul>
                   </div>
                   <div>
-                    <h4 className="font-semibold text-foreground mb-4">Legal</h4>
+                    <h4 className="font-semibold text-white mb-4">Legal</h4>
                     <ul className="space-y-2 text-sm text-muted-foreground">
                       <li><a href="#" className="hover:text-foreground transition-colors">Privacy Policy</a></li>
                       <li><a href="#" className="hover:text-foreground transition-colors">Terms of Service</a></li>
