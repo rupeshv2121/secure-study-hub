@@ -92,7 +92,7 @@ src/
 | `/profile` | Edit name and phone | authenticated |
 | `/admin` | Admin dashboard (6 panels) | admin only |
 
-**State.** TanStack Query owns all server state; `AuthContext` is the only global store. There is no Redux.
+**State.** TanStack Query owns all server state; `AuthContext` is the only global store.
 
 ---
 
@@ -122,7 +122,6 @@ Deploy as its own Vercel project with the root directory set to this repository.
 
 [`vercel.json`](vercel.json) supplies three things: an SPA rewrite so React Router routes survive a hard refresh, security headers (HSTS, `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, strict referrer policy, and a Permissions-Policy denying camera/microphone/geolocation), and a one-year immutable cache on `/assets/*`.
 
-> `VITE_API_URL` is **baked in at build time**. Changing it in the Vercel dashboard has no effect until you redeploy — editing repo files alone will not change the production bundle.
 
 ---
 
@@ -294,8 +293,6 @@ erDiagram
 
 `Purchase` also carries a self-referencing reviewer link (`reviewedById` to `User`) recording which admin actioned the request.
 
-Canonical schema: [prisma/schema.prisma](https://github.com/rupeshv2121/secure-study-hub-backend/blob/main/prisma/schema.prisma) (14 migrations applied).
-
 **`storagePath` is polymorphic** and the viewers branch on its shape:
 
 | Shape | Resolution |
@@ -437,8 +434,6 @@ flowchart TB
 ---
 
 ## API reference
-
-Base URL `<host>/api`. All responses use the envelope `{ success, data | message }`. Auth is `Authorization: Bearer <jwt>`. Implementation lives in the [backend repo](https://github.com/rupeshv2121/secure-study-hub-backend).
 
 **Legend** — `pub` public, `auth` authenticated, `admin` admin only.
 
