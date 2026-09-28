@@ -25,6 +25,9 @@ type DocumentWithFullscreenFallbacks = Document & {
   msFullscreenElement?: Element | null;
 };
 
+// Backend issues 300s signed URLs; treat them as stale a little early.
+const SIGNED_URL_TTL_MS = 270_000;
+
 const SecureViewer = ({ lectureId, slides }: SecureViewerProps) => {
   const { user } = useAuth();
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -38,6 +41,7 @@ const SecureViewer = ({ lectureId, slides }: SecureViewerProps) => {
   const viewerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageCache = useRef<Map<number, HTMLImageElement>>(new Map());
+  const urlFetchedAt = useRef<Map<number, number>>(new Map());
 
   const resolveSlidePath = useCallback((slide: SlidePathLike | null | undefined) => {
     return slide?.storage_path || slide?.storagePath || '';
@@ -101,6 +105,7 @@ const SecureViewer = ({ lectureId, slides }: SecureViewerProps) => {
       }
 
       const signedUrl = body.data.signedUrl as string;
+      urlFetchedAt.current.set(slideIndex, Date.now());
       setSlideUrls((prev) => ({ ...prev, [slideIndex]: signedUrl }));
       // mark PDF by url if it looks like a PDF
       const isPdf = String(signedUrl).toLowerCase().includes('.pdf') || String(storagePath).toLowerCase().endsWith('.pdf');
@@ -112,16 +117,28 @@ const SecureViewer = ({ lectureId, slides }: SecureViewerProps) => {
     }
   }, [extractDriveFileId]);
 
-  // Cleanup any object URLs created for Drive blobs
+  // Signed URLs are only re-requested when a slide is viewed after expiry — no background
+  // polling, so the backend is hit only while someone is actually navigating slides.
+  const isUrlStale = useCallback((slideIndex: number) => {
+    const fetchedAt = urlFetchedAt.current.get(slideIndex);
+    return fetchedAt !== undefined && Date.now() - fetchedAt > SIGNED_URL_TTL_MS;
+  }, []);
+
+  // Cleanup any object URLs created for Drive blobs (on unmount only; revoking on every
+  // slideUrls change would break Drive slides the user navigates back to)
+  const slideUrlsRef = useRef(slideUrls);
+  slideUrlsRef.current = slideUrls;
   useEffect(() => {
     return () => {
-      Object.values(slideUrls).forEach((url) => {
+      Object.values(slideUrlsRef.current).forEach((url) => {
         try {
           if (url?.startsWith('blob:')) URL.revokeObjectURL(url);
-        } catch {}
+        } catch {
+          // ignore — URL may already be revoked
+        }
       });
     };
-  }, [slideUrls]);
+  }, []);
 
   // Render slide to canvas (prevents direct image access)
   const renderSlideToCanvas = useCallback(
@@ -196,14 +213,14 @@ const SecureViewer = ({ lectureId, slides }: SecureViewerProps) => {
 
       for (const index of indicesToLoad) {
         const storagePath = resolveSlidePath(sortedSlides[index]);
-        if (!slideUrls[index] && storagePath) {
+        if (storagePath && (!slideUrls[index] || isUrlStale(index))) {
           await getSignedUrl(storagePath, index);
         }
       }
     };
 
     loadSlides();
-  }, [currentSlide, sortedSlides, slideUrls, getSignedUrl, resolveSlidePath]);
+  }, [currentSlide, sortedSlides, slideUrls, getSignedUrl, resolveSlidePath, isUrlStale]);
 
   // Render current slide to canvas when URL is available
   useEffect(() => {
@@ -211,18 +228,6 @@ const SecureViewer = ({ lectureId, slides }: SecureViewerProps) => {
       renderSlideToCanvas(slideUrls[currentSlide], currentSlide);
     }
   }, [currentSlide, slideUrls, renderSlideToCanvas]);
-
-  // Refresh signed URLs periodically (every 25 seconds to avoid expiry)
-  useEffect(() => {
-    const refreshInterval = setInterval(() => {
-      const storagePath = resolveSlidePath(sortedSlides[currentSlide]);
-      if (storagePath) {
-        getSignedUrl(storagePath, currentSlide);
-      }
-    }, 25000);
-
-    return () => clearInterval(refreshInterval);
-  }, [currentSlide, sortedSlides, getSignedUrl, resolveSlidePath]);
 
   // Navigation handlers
   const goToNextSlide = useCallback(() => {
