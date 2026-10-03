@@ -6,6 +6,7 @@ import FeedbackFab from '@/components/FeedbackFab';
 import LandingHero from '@/components/LandingHero';
 import Navbar from '@/components/Navbar';
 import PageLoader from '@/components/PageLoader';
+import PublicStats from '@/components/PublicStats';
 import QuoteBanner from '@/components/QuoteBanner';
 import Testimonials from '@/components/Testimonials';
 import { Button } from '@/components/ui/button';
@@ -101,6 +102,7 @@ const Index = () => {
       {!user ? (
         <main className="animate-fade-in">
           <LandingHero />
+          <PublicStats />
           <FeatureGrid />
 
           {/* How it works */}

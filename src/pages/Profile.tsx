@@ -21,6 +21,7 @@ const Profile = () => {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const displayName = fullName || profile?.full_name || user?.email?.split('@')[0] || 'Learner';
@@ -84,17 +85,23 @@ const Profile = () => {
       return;
     }
 
+    if (newPassword === currentPassword) {
+      toast.error('New password must be different from the current one');
+      return;
+    }
+
     setIsChangingPassword(true);
     try {
       const res = await apiFetch('/me', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: newPassword }),
+        body: JSON.stringify({ currentPassword, password: newPassword }),
       });
       const body = await res.json();
       if (!body?.success) throw new Error(body?.message || 'Failed to change password');
 
       toast.success('Password changed successfully!');
+      setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
     } catch (error: any) {
@@ -208,15 +215,29 @@ const Profile = () => {
                 <Lock className="h-5 w-5 text-primary" />
                 Password
               </CardTitle>
-              <CardDescription>Use a new password to secure your account.</CardDescription>
+              <CardDescription>Confirm your current password, then choose a new one.</CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleChangePassword} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="currentPassword">Current password</Label>
+                  <Input
+                    id="currentPassword"
+                    type="password"
+                    autoComplete="current-password"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    placeholder="Enter current password"
+                    required
+                  />
+                </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="newPassword">New password</Label>
                   <Input
                     id="newPassword"
                     type="password"
+                    autoComplete="new-password"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     placeholder="Enter new password"
@@ -229,6 +250,7 @@ const Profile = () => {
                   <Input
                     id="confirmPassword"
                     type="password"
+                    autoComplete="new-password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="Confirm new password"
