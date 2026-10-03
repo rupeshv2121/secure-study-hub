@@ -1,17 +1,15 @@
-import { getMe as apiGetMe, login as apiLogin, register as apiRegister } from '@/api/auth';
-import { supabase } from '@/integrations/supabase/client';
+import {
+  forgotPassword as apiForgotPassword,
+  getMe as apiGetMe,
+  login as apiLogin,
+  register as apiRegister,
+  resetPassword as apiResetPassword,
+} from '@/api/auth';
+import { AUTH_EXPIRED_EVENT } from '@/api/client';
 import type { AuthContextType, Profile, Session, User } from '@/interfaces/auth';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-const toOtpFriendlyError = (message: string): Error => {
-  if (message.toLowerCase().includes('magic link')) {
-    return new Error('Failed to create account. Please try again in a moment.');
-  }
-
-  return new Error(message);
-};
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -20,9 +18,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  const clearSession = () => {
+    localStorage.removeItem('auth_token');
+    setUser(null);
+    setSession(null);
+    setProfile(null);
+    setIsAdmin(false);
+  };
+
   const fetchProfile = async () => {
     try {
-      const { ok, body } = await apiGetMe();
+      const { ok, status, body } = await apiGetMe();
+      if (status === 401) {
+        clearSession();
+        return;
+      }
       const u = body?.user ?? body?.data?.user ?? null;
       if (ok && u) {
         setProfile({ id: u.id, email: u.email, full_name: u.name ?? null, phone_number: u.phoneNumber ?? u.phone_number ?? null });
@@ -51,7 +61,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     init();
-    return () => { mounted = false; };
+
+    // Any API call rejected with 401 means the stored token is dead; drop the
+    // session so protected pages redirect to /auth.
+    const onExpired = () => clearSession();
+    window.addEventListener(AUTH_EXPIRED_EVENT, onExpired);
+
+    return () => {
+      mounted = false;
+      window.removeEventListener(AUTH_EXPIRED_EVENT, onExpired);
+    };
   }, []);
 
   const signUp = async (email: string, password: string, fullName: string, phoneNumber?: string) => {
@@ -66,7 +85,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       if (!ok) {
-        return { error: toOtpFriendlyError(body?.message || 'Registration failed') };
+        return { error: new Error(body?.message || 'Registration failed') };
       }
 
       const token = body?.data?.token || body?.token || null;
@@ -117,80 +136,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signOut = async () => {
-    localStorage.removeItem('auth_token');
-    setUser(null);
-    setSession(null);
-    setProfile(null);
-    setIsAdmin(false);
-  };
-
-  const sendOtp = async (email?: string, type: 'signup' | 'reset' = 'signup') => {
-    if (!email) return { error: new Error('Email is required') };
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        shouldCreateUser: type === 'signup',
-      },
-    } as any);
-
-    return { error: error ? toOtpFriendlyError((error as any).message) : null };
-  };
-
-  const verifyOtp = async (email: string, token: string, type: 'reset' = 'reset') => {
-    const { error: verifyError } = await supabase.auth.verifyOtp({
-      email,
-      token,
-      type: 'recovery',
-    } as any);
-
-    if (verifyError) {
-      return { error: new Error((verifyError as any).message) };
-    }
-
-    return { error: null };
+    clearSession();
   };
 
   const resetPassword = async (email?: string) => {
     if (!email) return { error: new Error('Email is required') };
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth?mode=reset`,
-    });
-
-    return { error: error ? toOtpFriendlyError(error.message) : null };
+    try {
+      const { ok, body } = await apiForgotPassword(email);
+      if (!ok) return { error: new Error(body?.message || 'Failed to send reset link') };
+      return { error: null };
+    } catch (e) {
+      return { error: new Error(e instanceof Error ? e.message : 'Failed to send reset link') };
+    }
   };
 
-  const updatePasswordWithOtp = async (newPassword: string) => {
-    // Ensure we have a session. If the user landed on the page via the recovery
-    // link, Supabase places tokens in the URL and `getSessionFromUrl` will
-    // parse and store them. Try to parse URL if no session exists yet.
-    let { data } = await supabase.auth.getSession();
-
-    if (!data.session) {
-      try {
-        const authHelper = supabase.auth as unknown as { getSessionFromUrl?: () => Promise<unknown> };
-        const fromUrl = authHelper.getSessionFromUrl ? await authHelper.getSessionFromUrl() : null;
-        if (fromUrl && typeof fromUrl === 'object') {
-          const maybeData = (fromUrl as Record<string, unknown>)['data'];
-          if (maybeData && typeof maybeData === 'object' && 'session' in maybeData) {
-            data = maybeData as unknown as typeof data;
-          }
-        }
-      } catch (e) {
-        // ignore; we'll return a helpful error below
-      }
+  const completePasswordReset = async (token: string, newPassword: string) => {
+    try {
+      const { ok, body } = await apiResetPassword(token, newPassword);
+      if (!ok) return { error: new Error(body?.message || 'Failed to reset password') };
+      return { error: null };
+    } catch (e) {
+      return { error: new Error(e instanceof Error ? e.message : 'Failed to reset password') };
     }
-
-    if (!data.session) {
-      return { error: new Error('Open the password reset link from your email first.') };
-    }
-
-    const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
-
-    if (!updateError) {
-      await supabase.auth.signOut();
-    }
-
-    return { error: updateError ? new Error(updateError.message) : null };
   };
 
   return (
@@ -204,10 +171,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signUp, 
         signIn, 
         signOut,
-        sendOtp,
-        verifyOtp,
         resetPassword,
-        updatePasswordWithOtp,
+        completePasswordReset,
       }}
     >
       {children}

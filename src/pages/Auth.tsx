@@ -4,7 +4,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
 import { ArrowRight, BookOpen, Eye, EyeOff, Loader2, Lock, Mail, Phone, User } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -31,8 +30,8 @@ const forgotPasswordSchema = z.object({
 
 const resetPasswordSchema = z
   .object({
-    newPassword: z.string().min(6, { message: 'Password must be at least 6 characters' }),
-    confirmPassword: z.string().min(6, { message: 'Confirm password is required' }),
+    newPassword: z.string().min(8, { message: 'Password must be at least 8 characters' }),
+    confirmPassword: z.string().min(1, { message: 'Confirm password is required' }),
   })
   .refine((data) => data.newPassword === data.confirmPassword, {
     message: 'Passwords do not match',
@@ -50,13 +49,14 @@ const Auth = () => {
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [resetToken, setResetToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showPassword, setShowPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const { signUp, signIn, user, resetPassword, updatePasswordWithOtp } = useAuth();
+  const { signUp, signIn, user, resetPassword, completePasswordReset } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -70,25 +70,17 @@ const Auth = () => {
     const params = new URLSearchParams(location.search);
     const mode = params.get('mode');
     if (mode === 'reset') {
-      // Parse the Supabase recovery session from the URL so `updateUser` works
-      (async () => {
-        try {
-          // This reads the access token from the URL and stores the session in the client
-          // so that `supabase.auth.getSession()` will return a valid session.
-          // Some versions of the client don't expose the helper on the typed
-          // interface — call it via an untyped helper signature if available.
-          const authHelper = supabase.auth as unknown as { getSessionFromUrl?: () => Promise<unknown> };
-          if (authHelper.getSessionFromUrl) await authHelper.getSessionFromUrl();
-        } catch (err) {
-          // ignore — we'll show a helpful error when attempting to update
-          // the password if the session isn't present
-        } finally {
-          setShowForgotPassword(false);
-          setShowResetPasswordForm(true);
-        }
-      })();
+      // The emailed link carries the token in the fragment (#token=...) so it
+      // never reaches a server log. Read it, then strip it from the address bar.
+      const token = new URLSearchParams(location.hash.replace(/^#/, '')).get('token');
+      if (token) {
+        setResetToken(token);
+        window.history.replaceState(null, '', `${location.pathname}${location.search}`);
+      }
+      setShowForgotPassword(false);
+      setShowResetPasswordForm(true);
     }
-  }, [location.search]);
+  }, [location.search, location.hash, location.pathname]);
 
   const validateForm = () => {
     if (showResetPasswordForm) {
@@ -151,16 +143,22 @@ const Auth = () => {
 
     try {
       if (showResetPasswordForm) {
-        const { error } = await updatePasswordWithOtp(newPassword);
+        if (!resetToken) {
+          toast.error('Open the password reset link from your email first.');
+          return;
+        }
+        const { error } = await completePasswordReset(resetToken, newPassword);
         if (error) {
           toast.error(error.message || 'Failed to reset password. Please try again.');
         } else {
           toast.success('Password reset successful! Please sign in with your new password.');
           setNewPassword('');
           setConfirmPassword('');
+          setResetToken(null);
           setShowForgotPassword(false);
           setShowResetPasswordForm(false);
           setIsSignUp(false);
+          navigate('/auth', { replace: true });
         }
       } else if (showForgotPassword) {
         const { error } = await resetPassword(forgotPasswordEmail);
@@ -171,7 +169,7 @@ const Auth = () => {
             toast.error(error.message || 'Failed to send reset link. Please try again.');
           }
         } else {
-          toast.success('Reset link sent to your email. Open it to continue.');
+          toast.success('If an account exists for that email, a reset link is on its way.');
           setShowForgotPassword(false);
         }
       } else if (isSignUp) {
@@ -223,7 +221,7 @@ const Auth = () => {
       if (error) {
         toast.error(error.message || 'Failed to resend the email.');
       } else {
-        toast.success('Reset link resent successfully!');
+        toast.success('If an account exists for that email, a new link is on its way.');
       }
     } catch (error) {
       toast.error('Failed to resend the email. Please try again.');
@@ -348,10 +346,17 @@ const Auth = () => {
                   type="button"
                   variant="ghost"
                   className="w-full text-sm"
-                  onClick={handleResendResetLink}
+                  onClick={() => {
+                    setShowResetPasswordForm(false);
+                    setShowForgotPassword(true);
+                    setResetToken(null);
+                    setNewPassword('');
+                    setConfirmPassword('');
+                    setErrors({});
+                  }}
                   disabled={isLoading}
                 >
-                  Didn't receive link? Resend reset link
+                  Link expired? Request a new one
                 </Button>
 
                 <Button
@@ -360,6 +365,7 @@ const Auth = () => {
                   className="w-full"
                   onClick={() => {
                     setShowResetPasswordForm(false);
+                    setResetToken(null);
                     setNewPassword('');
                     setConfirmPassword('');
                     setErrors({});

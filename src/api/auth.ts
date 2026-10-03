@@ -59,6 +59,28 @@ export async function webhook(payload: any, secret?: string) {
   return { ok: res.ok, status: res.status, body };
 }
 
+export async function forgotPassword(email: string) {
+  const res = await apiFetch("/auth/forgot-password", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+
+  const body = await parseJsonSafe(res);
+  return { ok: res.ok, status: res.status, body };
+}
+
+export async function resetPassword(token: string, password: string) {
+  const res = await apiFetch("/auth/reset-password", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token, password }),
+  });
+
+  const body = await parseJsonSafe(res);
+  return { ok: res.ok, status: res.status, body };
+}
+
 export async function getMe() {
   const res = await apiFetch("/me", { credentials: "include" });
   const body = await parseJsonSafe(res);
@@ -70,5 +92,7 @@ export default {
   login,
   syncUser,
   webhook,
+  forgotPassword,
+  resetPassword,
   getMe,
 };
