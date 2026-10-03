@@ -42,6 +42,11 @@ export interface LectureSlide {
 
 export interface AdminStats {
   totalUsers: number;
+  activeUsers24h: number;
+  activeUsers7d: number;
+  activeUsers30d: number;
+  newUsers30d: number;
+  payingUsers: number;
   totalLectures: number;
   totalCategories: number;
   totalViews: number;
