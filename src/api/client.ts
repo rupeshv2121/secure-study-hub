@@ -19,6 +19,10 @@ const getToken = () => {
   }
 };
 
+// Fired when the API rejects our stored token (expired or revoked). AuthContext
+// listens for it and drops the session so the app doesn't keep sending it.
+export const AUTH_EXPIRED_EVENT = "auth:expired";
+
 export async function apiFetch(path: string, options: RequestInit = {}) {
   const url = buildUrl(path);
   const defaultOptions: RequestInit = { credentials: "include" };
@@ -32,7 +36,20 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
   }
   merged.headers = headers;
 
-  return fetch(url, merged);
+  const res = await fetch(url, merged);
+
+  // /auth/* returns 401 for a wrong password, which says nothing about the
+  // stored session, so only other endpoints count as an expired token.
+  if (res.status === 401 && token && !path.replace(/^\/?(api\/)?/, "").startsWith("auth/")) {
+    try {
+      localStorage.removeItem("auth_token");
+    } catch {
+      // storage unavailable
+    }
+    window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+  }
+
+  return res;
 }
 
 export default apiFetch;

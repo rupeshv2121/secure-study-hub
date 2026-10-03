@@ -32,18 +32,9 @@ export interface AuthContextType {
   ) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
-  sendOtp: (
-    email: string,
-    type?: "signup" | "reset",
-  ) => Promise<{ error: Error | null }>;
-  verifyOtp: (
-    email: string,
-    token: string,
-    type?: "reset",
-    newPassword?: string,
-  ) => Promise<{ error: Error | null }>;
   resetPassword: (email: string) => Promise<{ error: Error | null }>;
-  updatePasswordWithOtp: (
+  completePasswordReset: (
+    token: string,
     newPassword: string,
   ) => Promise<{ error: Error | null }>;
 }
