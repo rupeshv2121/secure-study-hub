@@ -94,6 +94,8 @@ export const useSecurityProtection = ({
 
   // Handle window blur (clicking outside browser)
   const handleWindowBlur = useCallback(() => {
+    // Focus moving into an embedded frame on this page also fires window blur — not leaving.
+    if (document.activeElement instanceof HTMLIFrameElement) return;
     onBlurChange(true);
     onSecurityWarning("Content hidden. Click here to view.");
   }, [onBlurChange, onSecurityWarning]);
@@ -191,8 +193,12 @@ export const useSecurityProtection = ({
     window.addEventListener("beforeprint", handleBeforePrint);
     window.addEventListener("afterprint", handleAfterPrint);
 
-    // Start DevTools detection interval
-    devToolsCheckInterval.current = window.setInterval(checkDevTools, 1000);
+    // Start DevTools detection interval. The window-size heuristic gives false positives on
+    // phones/tablets (browser toolbars, pinch-zoom, split view), where docked DevTools don't
+    // exist anyway — so only run it when the primary pointer is a mouse/trackpad.
+    if (!window.matchMedia("(pointer: coarse)").matches) {
+      devToolsCheckInterval.current = window.setInterval(checkDevTools, 1000);
+    }
 
     return () => {
       document.removeEventListener("keydown", handleKeyDown, true);

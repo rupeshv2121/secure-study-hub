@@ -4,7 +4,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useSecurityProtection } from '@/hooks/useSecurityProtection';
 import type { SecureViewerProps } from '@/interfaces/secureviewer';
 import { AlertTriangle, ChevronLeft, ChevronRight, Lock, Maximize, Minimize, Shield, ZoomIn, ZoomOut } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+// pdf.js is large — only download it when a lecture actually contains a PDF.
+const PdfCanvasViewer = lazy(() => import('@/components/PdfCanvasViewer'));
 
 type SlidePathLike = {
   slide_number?: number;
@@ -316,6 +319,8 @@ const SecureViewer = ({ lectureId, slides }: SecureViewerProps) => {
     [user?.email]
   );
 
+  const isPdfSlide = slideTypes[currentSlide] === 'pdf';
+
   if (sortedSlides.length === 0) {
     return (
       <div className="flex items-center justify-center h-96 bg-muted rounded-xl">
@@ -380,22 +385,22 @@ const SecureViewer = ({ lectureId, slides }: SecureViewerProps) => {
 
       {/* Slide Display - Using Canvas for security */}
       <div
-        className={`relative ${isFullscreen ? 'h-[calc(100vh-120px)]' : 'aspect-[16/9]'} bg-background overflow-hidden transition-all duration-300 ${
-          isBlurred ? 'blur-xl' : ''
-        }`}
+        className={`relative ${
+          isFullscreen ? 'h-[calc(100vh-120px)]' : isPdfSlide ? 'h-[75vh]' : 'aspect-[16/9]'
+        } bg-background overflow-hidden transition-all duration-300 ${isBlurred ? 'blur-xl' : ''}`}
       >
+        {isPdfSlide && slideUrls[currentSlide] ? (
+          // PDFs are drawn with pdf.js (handles its own zoom/scroll) — an <iframe> doesn't
+          // render PDFs on phones/tablets.
+          <Suspense fallback={null}>
+            <PdfCanvasViewer url={slideUrls[currentSlide]} watermarkText={watermarkText} zoom={zoom} />
+          </Suspense>
+        ) : (
         <div
           className="absolute inset-0 flex items-center justify-center"
           style={{ transform: `scale(${zoom})`, transformOrigin: 'center' }}
         >
-          {slideTypes[currentSlide] === 'pdf' ? (
-            <iframe
-              title={`slide-${currentSlide}`}
-              src={slideUrls[currentSlide]}
-              className="max-w-full max-h-full secure-canvas"
-              style={{ border: 'none', width: '100%', height: '100%' }}
-            />
-          ) : (
+          {isPdfSlide ? null : (
             <canvas
               ref={canvasRef}
               className="max-w-full max-h-full secure-canvas"
@@ -405,6 +410,7 @@ const SecureViewer = ({ lectureId, slides }: SecureViewerProps) => {
             />
           )}
         </div>
+        )}
 
         {/* Loading indicator */}
         {!slideUrls[currentSlide] && (
