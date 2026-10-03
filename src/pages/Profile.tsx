@@ -79,8 +79,8 @@ const Profile = () => {
       return;
     }
 
-    if (newPassword.length < 6) {
-      toast.error('Password must be at least 6 characters');
+    if (newPassword.length < 8) {
+      toast.error('Password must be at least 8 characters');
       return;
     }
 
@@ -95,7 +95,6 @@ const Profile = () => {
       if (!body?.success) throw new Error(body?.message || 'Failed to change password');
 
       toast.success('Password changed successfully!');
-      setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
     } catch (error: any) {
